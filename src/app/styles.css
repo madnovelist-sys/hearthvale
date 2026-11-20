@@ -231,3 +231,23 @@ body.panel-open .zoom { right: 444px; }
   .founding aside { max-height: 60vh; align-self: end; }
   .studio { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 }
+
+/* Family tree */
+.dialog.tree { width: min(860px, 100%); }
+.tree-row { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; padding: 10px 0; position: relative; }
+.tree-row + .tree-row { border-top: 1px dashed var(--line); }
+.tree-group { display: flex; gap: 6px; align-items: center; }
+.tree-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.tree-sub { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; max-width: 260px; }
+.tree-sub .tree-node { padding: 3px 7px; }
+.tree-sub .tree-node b { font-size: 12px; }
+.tree-amp { color: var(--ink-3); font-family: var(--serif); }
+.tree-node { border: 1px solid var(--line); background: #f7eed9; border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; min-width: 96px; }
+.tree-node b { font-size: 13px; white-space: nowrap; }
+.tree-node span { font-size: 11px; color: var(--ink-3); }
+.tree-node:hover { background: var(--parchment-3); }
+.tree-node.focus { border-color: var(--ink); box-shadow: 0 0 0 2px rgba(59, 47, 42, 0.15); }
+.tree-node.gone { opacity: 0.65; }
+.tree-node.patron b { color: var(--gold-ink); }
+.petition { border-left: 3px solid var(--gold); }
+.fortune { border: 1px solid #e5b062; background: #fff3dc; }

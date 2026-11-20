@@ -6,7 +6,7 @@ import { creditTime, GAP_LIMIT_MS, localDate, logWords, startSession, stopSessio
 import { loadGame, saveGame } from './save';
 import { notify } from './desktop';
 
-export type Panel = 'chronicle' | 'people' | 'acts' | 'arrivals' | 'settings' | 'art';
+export type Panel = 'chronicle' | 'people' | 'society' | 'acts' | 'arrivals' | 'settings' | 'art';
 export type Selection = { kind: 'person'; id: number } | { kind: 'building'; id: number } | null;
 
 export interface Toast { id: number; text: string; tone?: 'gold' | 'plain' }
@@ -21,7 +21,9 @@ export interface UiState {
   gapMs: number | null;
   gapReason?: 'closed' | 'away';
   /** Open act form. */
-  act: 'settler' | 'quest' | 'name' | null;
+  act: 'settler' | 'quest' | 'name' | 'law' | 'prophet' | null;
+  /** Person whose family tree is open. */
+  tree?: number;
   actTarget?: number;
   /** The small "log words" dialog (word tracking only). */
   logWords?: boolean;

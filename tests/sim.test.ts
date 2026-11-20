@@ -162,3 +162,92 @@ describe('saves', () => {
     expect(() => parseSave('{"hello":1}')).toThrow();
   });
 });
+
+import { raiseProphet, whisperLaw, lawCost } from '../src/sim/acts';
+import { followers, hasLaw } from '../src/sim/society';
+import { ignite, startPlague } from '../src/sim/calamity';
+import { answerPetition } from '../src/sim/petitions';
+import { offerFortune, takeFortune } from '../src/sim/fortunes';
+
+describe('village life', () => {
+  it('someone comes to lead, and leaders make laws', () => {
+    const s = run(31, 30);
+    expect(s.leader).toBeDefined();
+    expect(s.people[s.leader!.person].alive).toBe(true);
+    expect(s.chronicle.some((e) => e.kind === 'leader')).toBe(true);
+  });
+
+  it('Whisper a Law enacts and repeals, priced by the leader', () => {
+    const s = run(31, 12);
+    expect(s.leader).toBeDefined();
+    s.favor = 50;
+    const id = 'feast-days' as const;
+    const had = hasLaw(s, id);
+    const cost = lawCost(s, id);
+    expect(whisperLaw(s, id).ok).toBe(true);
+    expect(hasLaw(s, id)).toBe(!had);
+    expect(s.favor).toBe(50 - cost);
+  });
+
+  it('Raise a Prophet founds a faith that spreads and is passed to children', () => {
+    const s = run(8, 10);
+    s.favor = 10;
+    const prophet = s.people.find((p) => p.alive && p.away === undefined && ageOf(s, p) >= 20 && ageOf(s, p) <= 35 && p.spouse !== undefined)
+      ?? s.people.find((p) => p.alive && p.away === undefined && ageOf(s, p) >= 20 && ageOf(s, p) <= 40)!;
+    expect(raiseProphet(s, prophet.id, ['hearth', 'feasting']).ok).toBe(true);
+    const faith = s.faiths[s.faiths.length - 1];
+    expect(prophet.faith).toBe(faith.id);
+    for (let d = 0; d < 10 * DAYS_PER_YEAR; d++) stepDay(s);
+    expect(followers(s, faith.id)).toBeGreaterThan(1);
+    // A baby born to a believer is raised in the faith.
+    const mother = s.people.find((p) => p.alive && p.away === undefined && p.sex === 'f' && ageOf(s, p) >= 18 && ageOf(s, p) <= 40)!;
+    mother.faith = faith.id;
+    mother.pregnant = { due: s.day + 1, father: mother.spouse ?? mother.id };
+    const before = s.people.length;
+    stepDay(s); stepDay(s);
+    const baby = s.people.slice(before).find((p) => p.parents[0] === mother.id);
+    expect(baby?.faith).toBe(faith.id);
+  });
+
+  it('plague spreads, and an answered petition ends it', () => {
+    const s = run(44, 12);
+    startPlague(s);
+    for (let d = 0; d < 40; d++) stepDay(s);
+    expect(s.plague?.cases ?? 0).toBeGreaterThan(1);
+    const pet = s.petitions.find((p) => p.kind === 'plague');
+    if (pet) {
+      s.favor = 10;
+      expect(answerPetition(s, pet.id).ok).toBe(true);
+      expect(s.plague).toBeUndefined();
+    }
+  });
+
+  it('fire burns a home out and its family gets a tent', () => {
+    const s = run(45, 6);
+    const home = s.buildings.find((b) => b.built && !b.removed && (b.kind === 'hut' || b.kind === 'house') && s.people.some((p) => p.alive && p.home === b.id))!;
+    const family = s.people.filter((p) => p.alive && p.home === home.id);
+    ignite(s, home, true);
+    for (let d = 0; d < 8; d++) stepDay(s);
+    expect(home.burned).toBe(true);
+    for (const p of family) if (p.alive) expect(p.home).not.toBe(home.id);
+  });
+
+  it('reaching the daily goal offers a Fortune, and a master builder finishes everything', () => {
+    const s = run(46, 4);
+    offerFortune(s);
+    const offer = s.fortunes[0];
+    offer.options[0] = 'builder';
+    const r = takeFortune(s, offer.id, 'builder');
+    expect(r.ok).toBe(true);
+    stepDay(s);
+    expect(s.buildings.filter((b) => !b.built && !b.removed && b.founded < s.day - 1).length).toBe(0);
+  });
+
+  it('older saves load with village life added', () => {
+    const s = run(47, 2) as unknown as Record<string, unknown>;
+    delete s.laws; delete s.faiths; delete s.petitions; delete s.fortunes;
+    const back = parseSave(JSON.stringify(s));
+    expect(back.laws).toEqual([]);
+    expect(back.faiths).toEqual([]);
+  });
+});

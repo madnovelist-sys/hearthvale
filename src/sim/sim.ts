@@ -3,6 +3,11 @@ import { log, nameYear, P } from './chronicle';
 import { economyDay, economySeason, assignJobs } from './economy';
 import { lifeDay } from './life';
 import { momentsDay } from './moments';
+import { clearRuins, fireDay, plagueDay, plagueSeason } from './calamity';
+import { applyHarvestBoost } from './fortunes';
+import { petitionsDay } from './petitions';
+import { businessYear, faithYear, plantFaithSeed, societySeason } from './society';
+import type { TenetId } from './types';
 import { generateMap } from './mapgen';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite, plannerDay } from './planner';
@@ -113,16 +118,27 @@ export function stepDay(s: GameState) {
   lifeDay(s);
   questsDay(s);
   plannerDay(s);
+  plagueDay(s);
+  fireDay(s);
+  petitionsDay(s);
   momentsDay(s);
   if (d % 30 === 0) assignJobs(s);
   checkStage(s);
   s.day += 1;
-  if (s.day % DAYS_PER_YEAR === 0) nameYear(s, yearOf(s.day - 1));
+  if (s.day % DAYS_PER_YEAR === 0) {
+    faithYear(s);
+    businessYear(s);
+    nameYear(s, yearOf(s.day - 1));
+  }
 }
 
 function onSeason(s: GameState) {
   economySeason(s);
+  applyHarvestBoost(s);
   questsSeason(s);
+  societySeason(s);
+  plagueSeason(s);
+  clearRuins(s);
   if (seasonIndex(s.day) === 0) omens(s);
 }
 
@@ -130,27 +146,31 @@ function omens(s: GameState) {
   const w = s.settings.weirdness;
   const r = s.rng;
   if (w === 0) {
-    if (chance(r, 0.04)) log(s, 'omen', `A comet hung over ${s.name} for nine nights. Some said it meant good fortune; some said the opposite.`, [], 5, 'The Year of the Comet');
+    if (chance(r, 0.04)) {
+      log(s, 'omen', `A comet hung over ${s.name} for nine nights. Some said it meant good fortune; some said the opposite.`, [], 5, 'The Year of the Comet');
+      plantFaithSeed(s, 'comet');
+    }
     return;
   }
   if (!chance(r, 0.12 + w * 0.06)) return;
-  const options: [string, string][] = [
-    [`Lights were seen over the marsh at night, drifting against the wind.`, 'The Year of the Marsh Lights'],
-    [`The Old Stone hummed for a whole night. Dogs would not go near it.`, 'The Year the Stone Hummed'],
-    [`A comet hung over ${s.name} for nine nights, green at the edges.`, 'The Year of the Comet'],
+  const options: [string, string, TenetId][] = [
+    [`Lights were seen over the marsh at night, drifting against the wind.`, 'The Year of the Marsh Lights', 'river'],
+    [`The Old Stone hummed for a whole night. Dogs would not go near it.`, 'The Year the Stone Hummed', 'hearth'],
+    [`A comet hung over ${s.name} for nine nights, green at the edges.`, 'The Year of the Comet', 'comet'],
   ];
   if (w >= 2) options.push(
-    [`After a storm, the river turned up bones the size of a man, from some animal nobody could name.`, 'The Year of the Great Bones'],
-    [`For three days, every bird in the valley flew west. Then they came back, as if nothing had happened.`, 'The Year of the Birds'],
+    [`After a storm, the river turned up bones the size of a man, from some animal nobody could name.`, 'The Year of the Great Bones', 'ancestors'],
+    [`For three days, every bird in the valley flew west. Then they came back, as if nothing had happened.`, 'The Year of the Birds', 'comet'],
   );
   if (w >= 3) options.push(
-    [`Something large walked the edge of the woods at dusk, and left tracks with too many toes.`, 'The Year of the Tracks'],
+    [`Something large walked the edge of the woods at dusk, and left tracks with too many toes.`, 'The Year of the Tracks', 'relics'],
   );
   if (w >= 4) options.push(
-    [`A stone the size of a hut was found floating a hand's width above the meadow. Children dared each other to crawl under it.`, 'The Year of the Floating Stone'],
+    [`A stone the size of a hut was found floating a hand's width above the meadow. Children dared each other to crawl under it.`, 'The Year of the Floating Stone', 'hearth'],
   );
-  const [text, name] = pick(r, options);
+  const [text, name, tenet] = pick(r, options);
   log(s, 'omen', text, [], 5, name);
+  plantFaithSeed(s, tenet);
 }
 
 function checkStage(s: GameState) {

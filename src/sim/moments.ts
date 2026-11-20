@@ -4,6 +4,7 @@
 import { F, log, P } from './chronicle';
 import { chance, pick } from './rng';
 import type { GameState, Person } from './types';
+import { hasLaw } from './society';
 import { ageOf, hasTrait, possessive, present, pronoun, seasonIndex } from './world';
 
 type Moment = (s: GameState, people: Person[]) => { text: string; who: Person[]; weight?: number } | null;
@@ -43,6 +44,7 @@ const MOMENTS: Moment[] = [
     ]), who: [p] };
   },
   (s, ps) => {
+    if (hasLaw(s, 'no-blades') && chance(s.rng, 0.6)) return null;
     const pair = two(s, withTrait(adults(s, ps), 'stubborn', 'greedy', 'cruel', 'cunning'));
     if (!pair) return null;
     const [a, b] = pair;
@@ -138,6 +140,11 @@ export function momentsDay(s: GameState) {
   const index = pick(s.rng, choices);
   const m = MOMENTS[index](s, people);
   if (!m) return;
+  // The same small moment doesn't happen to the same people twice in a few years.
+  const since = s.day - 8 * 360;
+  for (let i = s.chronicle.length - 1; i >= 0 && s.chronicle[i].day >= since; i--) {
+    if (s.chronicle[i].kind === 'season' && s.chronicle[i].text === m.text) return;
+  }
   recent.push(index);
   if (recent.length > 5) recent.shift();
   log(s, 'season', m.text, m.who.map((p) => p.id), m.weight ?? 1);

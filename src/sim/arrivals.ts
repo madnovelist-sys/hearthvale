@@ -5,6 +5,7 @@ import { familyName } from './names';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite } from './planner';
 import { int, pick, weighted } from './rng';
+import { hasLaw } from './society';
 import type { GameState, Party, PersonDraft } from './types';
 
 type PartyShape = 'single' | 'couple' | 'family' | 'siblings' | 'elder';
@@ -89,7 +90,8 @@ export function makeParty(s: GameState): Party {
 }
 
 export function makeArrivalOptions(s: GameState): Party[] {
-  return [makeParty(s), makeParty(s), makeParty(s)];
+  const n = hasLaw(s, 'open-gates') ? 4 : 3;
+  return Array.from({ length: n }, () => makeParty(s));
 }
 
 /** The party arrives: real people, a tent, and a line in the Chronicle. */

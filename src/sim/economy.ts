@@ -5,6 +5,7 @@ import { settlementRegion } from './planner';
 import { chance, int, pick, range } from './rng';
 import { TREE, type GameState, type JobId, type Person } from './types';
 import { ageOf, isBlessed, present, seasonIndex, tone } from './world';
+import { hasLaw } from './society';
 
 // Daily food per worker, by season: spring, summer, autumn, winter.
 const FOOD_RATE: Partial<Record<JobId, number[]>> = {
@@ -28,6 +29,7 @@ function workRate(s: GameState, p: Person): number {
   if (p.traits.includes('lazy')) m *= 0.85;
   if (p.skill === p.job) m *= 1.15; else m *= 0.92;
   if (isBlessed(s, p)) m *= 1.1;
+  if (hasLaw(s, 'work-dawn')) m *= 1.08;
   if (p.health < 50) m *= 0.7;
   return m;
 }
@@ -48,8 +50,9 @@ export function economyDay(s: GameState) {
   let goods = 0;
   let need = 0;
   const pop = people.length;
+  const feast = hasLaw(s, 'feast-days') ? 1.03 : 1;
   for (const p of people) {
-    need += consumption(s, p);
+    need += consumption(s, p) * feast;
     const rate = workRate(s, p);
     if (!rate) continue;
     const foodRate = FOOD_RATE[p.job];
@@ -93,7 +96,7 @@ export function economyDay(s: GameState) {
     }
   }
   if (season !== 3) s.flags.coldSince = undefined;
-  s.stores.goods *= 0.9995;
+  s.stores.goods *= hasLaw(s, 'tithe') ? 0.997 : 0.9995;
 
   if (s.stores.food >= need) {
     s.stores.food -= need;
@@ -123,7 +126,7 @@ function starve(s: GameState, people: Person[], shortfall: number) {
   const floor = { gentle: 40, balanced: 15, grim: 0 }[tone(s)];
   for (const p of people) {
     const a = ageOf(s, p);
-    const loss = shortfall * (a < 10 || a >= 60 ? 0.9 : 0.6);
+    const loss = shortfall * (a < 10 || a >= 60 ? 0.9 : 0.6) * (hasLaw(s, 'share-harvest') ? 0.6 : 1);
     p.health = Math.max(floor, p.health - loss);
     p.mood -= shortfall * 0.8;
   }
@@ -272,7 +275,7 @@ function emigrate(s: GameState) {
   }
   const households = [...byHome.values()].filter((h) => !h.some((p) => p.patron || p.lineage));
   households.sort((a, b) => avgMood(a) - avgMood(b));
-  const leaving = households.slice(0, Math.ceil(households.length * 0.06));
+  const leaving = households.slice(0, Math.ceil(households.length * (hasLaw(s, 'share-harvest') ? 0.03 : 0.06)));
   for (const h of leaving) {
     for (const p of h) {
       p.alive = false;

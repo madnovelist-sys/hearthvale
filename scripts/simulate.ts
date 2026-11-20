@@ -45,5 +45,5 @@ console.log('Chronicle entries', kinds);
 console.log(`Simulated ${hours} years in ${Date.now() - t0} ms`);
 console.log('\nSample of the Chronicle:');
 for (const e of s.chronicle.filter((e) => e.weight >= 5).slice(0, 25)) {
-  console.log(`  [Y${Math.floor(e.day / DAYS_PER_YEAR) + 1}] ${resolveText(s, e.text)}`);
+  console.log(`  [Y${Math.floor(e.day / DAYS_PER_YEAR) + 1}] (${e.kind}) ${resolveText(s, e.text)}`);
 }

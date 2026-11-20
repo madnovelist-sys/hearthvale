@@ -4,16 +4,20 @@ import { log, P } from './chronicle';
 import { settleParty } from './arrivals';
 import { departQuest } from './quests';
 import { rand } from './rng';
+import { enactLaw, foundFaith, hasLaw, opinion, repealLaw } from './society';
+import type { LawId, TenetId } from './types';
 import { DAYS_PER_YEAR, type GameState, type Party, type PersonDraft, type QuestKind } from './types';
 import { ageOf, yearOf } from './world';
 
-export type ActId = 'bless' | 'name' | 'settler' | 'quest';
+export type ActId = 'bless' | 'name' | 'settler' | 'quest' | 'law' | 'prophet';
 
 export const ACTS: { id: ActId; label: string; cost: number; blurb: string }[] = [
   { id: 'bless', label: 'Bless', cost: 1, blurb: 'A year of good luck and health for one person.' },
   { id: 'name', label: 'Name', cost: 1, blurb: 'Name this year, or a newborn.' },
   { id: 'settler', label: 'Create a Settler', cost: 3, blurb: 'Someone of your making arrives at dawn.' },
   { id: 'quest', label: 'Send on a Quest', cost: 3, blurb: 'Send someone (and companions) out into the world.' },
+  { id: 'law', label: 'Whisper a Law', cost: 5, blurb: "Put a law in the leader's head, or talk them out of one. Costs more if they'd hate it." },
+  { id: 'prophet', label: 'Raise a Prophet', cost: 8, blurb: 'Someone wakes certain of something, and founds a faith you shape.' },
 ];
 
 export const actCost = (id: ActId) => ACTS.find((a) => a.id === id)!.cost;
@@ -133,4 +137,38 @@ export function applyPending(s: GameState) {
       else for (const m of members) m.preparing = undefined;
     }
   }
+}
+
+/** What whispering this law would cost: more if the leader would hate it. */
+export function lawCost(s: GameState, id: LawId): number {
+  const leader = s.leader ? s.people[s.leader.person] : undefined;
+  if (!leader) return actCost('law');
+  const o = opinion(leader, id);
+  const wants = hasLaw(s, id) ? -o : o; // repealing something they like is the hard sell
+  return actCost('law') + (wants < 0 ? 2 * -wants : 0);
+}
+
+export function whisperLaw(s: GameState, id: LawId): ActResult {
+  const leader = s.leader ? s.people[s.leader.person] : undefined;
+  if (!leader || !leader.alive) return { ok: false, reason: 'No one leads the settlement yet.' };
+  const cost = lawCost(s, id);
+  if (s.favor < cost) return { ok: false, reason: `You need ${cost} Favor for that.` };
+  s.favor -= cost;
+  if (hasLaw(s, id)) repealLaw(s, id, { patron: true });
+  else enactLaw(s, id, { patron: true });
+  return { ok: true };
+}
+
+export function raiseProphet(s: GameState, personId: number, tenets: TenetId[], name?: string): ActResult {
+  const p = s.people[personId];
+  if (!p || !p.alive || p.away !== undefined || ageOf(s, p) < 16) return { ok: false, reason: 'Choose a grown person who is here.' };
+  if (tenets.length < 1 || tenets.length > 2) return { ok: false, reason: 'Choose one or two teachings.' };
+  const free = !!s.flags.freeProphet;
+  if (!free) {
+    const paid = spend(s, 'prophet');
+    if (!paid.ok) return paid;
+  }
+  s.flags.freeProphet = false;
+  foundFaith(s, p, tenets, name, { patron: true });
+  return { ok: true };
 }

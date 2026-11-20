@@ -9,9 +9,11 @@ import { Hud } from './Hud';
 import { MapView, ZoomButtons } from './MapView';
 import { BuildingCard, PeoplePanel, PersonCard } from './People';
 import { SettingsPanel } from './Settings';
+import { SocietyPanel } from './Society';
+import { FamilyTree } from './FamilyTree';
 
 const TITLES: Record<Panel, string> = {
-  chronicle: 'The Chronicle', people: 'People', acts: 'Acts', arrivals: 'Arrivals', settings: 'Settings', art: 'Art',
+  chronicle: 'The Chronicle', people: 'People', society: 'Society', acts: 'Acts', arrivals: 'Arrivals', settings: 'Settings', art: 'Art',
 };
 
 export function App() {
@@ -49,6 +51,7 @@ export function App() {
           <div class="body">
             {panel === 'chronicle' && <ChroniclePanel />}
             {panel === 'people' && <PeoplePanel />}
+            {panel === 'society' && <SocietyPanel />}
             {panel === 'acts' && <ActsPanel />}
             {panel === 'arrivals' && <ArrivalsPanel />}
             {panel === 'settings' && <SettingsPanel />}
@@ -59,6 +62,7 @@ export function App() {
       {ui.selection?.kind === 'person' && <PersonCard id={ui.selection.id} />}
       {ui.selection?.kind === 'building' && <BuildingCard id={ui.selection.id} />}
       {ui.gapMs ? <GapDialog /> : ui.ended ? <SessionEnd /> : null}
+      {ui.tree !== undefined && !ui.ended && !ui.gapMs && <FamilyTree id={ui.tree} />}
       {ui.logWords && !ui.ended && <WordsDialog />}
       <div class="toasts" aria-live="polite">
         {ui.toasts.map((t) => <div class={`toast paper ${t.tone ?? ''}`} key={t.id}>{t.text}</div>)}

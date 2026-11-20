@@ -83,7 +83,8 @@ export function Hud() {
       <div class="tabs">
         {tab('chronicle', 'Chronicle')}
         {tab('people', 'People')}
-        {tab('acts', 'Acts')}
+        {tab('society', 'Society')}
+        {tab('acts', 'Acts', s.petitions.length + s.fortunes.length)}
         {tab('arrivals', 'Arrivals', waiting)}
         {tab('settings', 'Settings')}
       </div>

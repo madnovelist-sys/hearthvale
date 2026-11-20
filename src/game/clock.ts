@@ -3,6 +3,7 @@
 // minimized or the browser throttles timers; the simulation catches up.
 import { applyDawn, settleUnchosen } from '../sim/acts';
 import { makeArrivalOptions } from '../sim/arrivals';
+import { offerFortune } from '../sim/fortunes';
 import { stepDay } from '../sim/sim';
 import { FOCUS_MS_PER_DAY, type FocusDay, type GameState, type SessionRecord } from '../sim/types';
 
@@ -144,6 +145,7 @@ function checkDailyGoal(s: GameState, now: number, events: ClockEvents) {
   if (!met) return;
   day.goalMet = true;
   s.favor += 5;
+  offerFortune(s);
   if (s.focus.running) s.focus.running.favor += 5;
   events.dailyGoal?.();
 }

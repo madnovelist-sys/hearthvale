@@ -1,6 +1,7 @@
 // The settlement builds itself: it decides what to build, where it goes,
 // and moves families in when it's done. Footsteps wear paths into the grass.
 import { log } from './chronicle';
+import { openBusiness } from './society';
 import { isBuildable } from './mapgen';
 import { buildCostGrid, findPath, reachable } from './path';
 import { rand, shuffle, int } from './rng';
@@ -75,6 +76,8 @@ export function addBuilding(
 
 export function removeBuilding(s: GameState, b: Building) {
   b.removed = true;
+  // Nobody lives at a building that's gone (people away on quests come home to a tent).
+  for (const p of s.people) if (p.home === b.id) p.home = undefined;
   const ref = s.map.occ[tileIndex(s, b.x, b.y)];
   if (ref === b.id + 1) setOcc(s, b, 0);
 }
@@ -237,6 +240,7 @@ function completeBuilding(s: GameState, b: Building) {
     setOcc(s, b, b.id + 1);
     }
   if (b.forPeople?.length) moveIn(s, b, b.forPeople);
+  if (b.kind === 'kiln' || b.kind === 'furnace' || b.kind === 'stall') openBusiness(s, b);
   b.forPeople = undefined;
 
   const firsts = s.buildings.filter((x) => x.kind === b.kind && x.built && !x.removed && x.id !== b.id).length === 0;
@@ -348,7 +352,7 @@ function housing(s: GameState) {
   for (const b of s.buildings) {
     if (started >= 1 || pending + started >= 4) break;
     if (b.removed || !b.built || b.kind !== 'tent' || upgrading.has(b.id)) continue;
-    if (!residentsOf(b.id).length) { removeBuilding(s, b); continue; }
+    if (!s.people.some((p) => p.alive && !p.left && p.home === b.id)) { removeBuilding(s, b); continue; }
     queueUpgrade(s, b, rand(s.rng) < 0.5 ? 'hut' : 'house');
     started++;
   }

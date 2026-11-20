@@ -40,9 +40,13 @@ The art direction lives in its own document (the Art Design Document). This file
 
 ## Acts (spent with Favor)
 
-Built: **Bless** (1), **Name** a year or a baby (1), **Create a Settler** (3), **Send on a Quest** (3). Acts that bring people or send them away wait for dawn (the next session start).
+Built: **Bless** (1), **Name** a year or a baby (1), **Create a Settler** (3), **Send on a Quest** (3), **Whisper a Law** (5, +2 for each trait that makes the leader dislike it), **Raise a Prophet** (8). Acts that bring people or send them away wait for dawn (the next session start).
 
-Planned: Matchmake, Inspire, Whisper a Law, Call a Festival, Raise a Prophet, Commission, Avert Calamity, Found a Colony, and Petitions left at the Old Stone.
+**Petitions** at the Old Stone: when someone is gravely ill, away on a long quest, longing for a child, worried about the harvest, or when plague or fire strikes, people ask. Answering costs 1–4 Favor; ignored prayers lapse and life takes its course. Answered prayers inspire faith in the Unseen Keeper.
+
+**Fortunes** (daily goal reward): three rare opportunities, pick one: a master crafter, a traveling healer, a treasure map, a bumper harvest, a master builder, a great feast, or (in a village) a free Raise a Prophet.
+
+Planned: Matchmake, Inspire, Call a Festival, Commission, Avert Calamity, Found a Colony.
 
 ## Growth stages
 
@@ -65,10 +69,21 @@ Planned: Matchmake, Inspire, Whisper a Law, Call a Festival, Raise a Prophet, Co
 - Omens scaled by Weirdness. Everyday moments between the big events.
 - Years named after their most memorable event.
 
+### Village life (Phase 2)
+
+- **Leadership**: in a settlement, people bring their quarrels to whoever they respect (the Eldest); in a village, ambitious people claim the chief's seat, sometimes contested, and a chief who grows unpopular can be challenged and unseated.
+- **Laws**: leaders pass and repeal laws that match their personalities: Share the Harvest, Open Gates, the Fever Huts, Feast Days, Work from Dawn, No Blades at the Fire, the Elders' Voice, the Tithe to the Stone. Each has real effects, and people like or dislike each by their traits.
+- **Faith**: omens, relics, plagues survived and answered prayers stir people; a pious, charismatic person founds a faith with two tenets. Faiths spread through families (young faiths with extra zeal), are passed to children, keep a holy day, split when they grow large, and fade if no one keeps them.
+- **Plague**: arrives more often in crowded villages, spreads by contact, is slowed by the Fever Huts and healers, and burns out. Deadliness follows Darkness.
+- **Fire**: thatch catches, especially in dry summers and around kilns; it spreads to neighbors (less with a well), leaves charred shells that are later cleared, and burned-out families get a tent.
+- **Businesses**: kilns, forges and market stalls open under names (*The Red Kiln*, *Mira's Pots*) and pass to heirs.
+- **Family houses**: big families (six or more under one roof) build a 2×2 family house.
+- **Family tree** view for anyone.
+
 ## Roadmap
 
-1. **First Fire** (this build): timer, goals, Sparks, Favor, four Acts, the Bronze settlement to village, Chronicle, saving, the art test scene.
-2. **Village life**: leadership and laws, emergent religion, petitions, plague and fire, businesses, Fortunes.
+1. **First Fire** (done): timer, goals, Sparks, Favor, four Acts, the Bronze settlement to village, Chronicle, saving, the art test scene. Plus the menu-bar clock and pausing when away.
+2. **Village life** (done): leadership and laws, emergent religion, petitions, plague and fire, businesses, Fortunes, family trees.
 3. **Town and city**: districts, guilds, crime and trials, factions, neighbors, trade and war, Wonders, family trees, ages advancing by discovery, a bigger map.
 4. **Metropolis**: crowd simulation, later eras, performance work, ambient sound.
 5. **Polish and integrations**: Windows, Android and iOS, word-count integrations, sync between devices, optional AI-written chronicles.

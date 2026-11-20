@@ -3,6 +3,7 @@
 import { F, log, P } from './chronicle';
 import { assignJobs } from './economy';
 import { DREAM_LABEL, childOf, nameChild } from './people';
+import { hasLaw, lawMood } from './society';
 import { addBuilding, findSite, moveIn } from './planner';
 import { chance, int, pick, rand } from './rng';
 import { DAYS_PER_YEAR, type GameState, type Person } from './types';
@@ -187,12 +188,15 @@ export function lifeDay(s: GameState) {
         if (p.sick.severity > 0.9) log(s, 'recovery', `${P(p.id)} recovered from the fever, thinner but alive.`, [p.id], 2);
         p.sick = undefined;
       } else {
-        let d = p.sick.severity * 0.0012 * dark;
+        let d = p.sick.severity * (p.sick.plague ? 0.0055 : 0.0012) * dark;
+        if (p.sick.plague && hasLaw(s, 'fever-huts')) d *= 0.7;
+        if (s.flags.healerUntil !== undefined && s.day < s.flags.healerUntil) d *= 0.5;
         if (age < 5 || age >= 60) d *= 1.8;
         if (hasHealer) d *= 0.5;
         if (blessed) d *= 0.4;
         if (chance(s.rng, d)) {
-          killPerson(s, p, 'fever', deathText(s, p, age < 5 ? 'infant' : 'illness'), 1);
+          if (p.sick.plague && s.plague) s.plague.deaths++;
+          killPerson(s, p, p.sick.plague ? s.plague?.name ?? 'plague' : 'fever', deathText(s, p, age < 5 ? 'infant' : 'illness'), 1);
           continue;
         }
         p.health = Math.max(5, p.health - p.sick.severity * 0.6);
@@ -239,6 +243,7 @@ export function lifeDay(s: GameState) {
     base += p.home === undefined ? -12 : 4;
     if (p.spouse !== undefined) base += 8;
     if (hungry) base -= 20;
+    base += lawMood(s, p);
     if (p.sick || p.injured) base -= 10;
     base += Math.min(10, (s.stores.goods / Math.max(1, people.length)) * 2);
     p.mood += (base - p.mood) * 0.02;
@@ -402,6 +407,7 @@ function giveBirth(s: GameState, mother: Person) {
     const sex = rand(s.rng) < 0.5 ? 'f' : 'm';
     const child = childOf(s, mother, father, nameChild(s, mother, father, sex), sex);
     child.home = mother.home;
+    child.faith = mother.faith ?? father?.faith; // children are raised in their parents' faith
     babies.push(child);
   }
   const names = babies.map((b) => P(b.id));

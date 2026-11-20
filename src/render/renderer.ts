@@ -369,7 +369,15 @@ export class Renderer {
     for (const d of this.drawn) {
       if (d.kind === 'sprite') {
         if (d.b && d.b.id === selB) this.outlineFootprint(d.b);
-        this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
+        if (d.b?.burned) {
+          // A charred shell.
+          g.filter = 'brightness(0.32) saturate(0.25)';
+          this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
+          g.filter = 'none';
+        } else {
+          this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
+        }
+        if (d.b?.burning !== undefined) this.drawFlames(d.b, now);
         continue;
       }
       const w = this.walkers.list.get(d.id)!;
@@ -407,6 +415,35 @@ export class Renderer {
     }
   }
 
+  private drawFlames(b: Building, now: number) {
+    const g = this.g;
+    const k = this.tw / 64;
+    const base = this.toScreen(b.x + b.w / 2, b.y + b.h / 2);
+    const spread = (b.w + b.h) * 11 * k;
+    // A glow first, then the flames over the roof.
+    const glow = g.createRadialGradient(base.x, base.y - 24 * k, 0, base.x, base.y - 24 * k, 46 * k * b.w);
+    glow.addColorStop(0, 'rgba(255,150,60,0.55)');
+    glow.addColorStop(1, 'rgba(255,150,60,0)');
+    g.fillStyle = glow;
+    g.fillRect(base.x - 50 * k * b.w, base.y - 74 * k * b.w, 100 * k * b.w, 100 * k * b.w);
+    for (let i = 0; i < 6 + b.w * 3; i++) {
+      const fx = base.x + (((i * 37) % 11) / 11 - 0.5) * spread * 1.6;
+      const fy = base.y - (22 + ((i * 53) % 7) * 4) * k;
+      const flick = Math.sin(now / (70 + i * 13) + i) * 0.5 + 0.5;
+      const h = (24 + flick * 18) * k;
+      const w = (7 + ((i * 17) % 4) * 1.5) * k;
+      g.fillStyle = i % 3 === 0 ? '#FFD27A' : C.fire;
+      g.globalAlpha = 0.9;
+      g.beginPath();
+      g.moveTo(fx - w, fy);
+      g.quadraticCurveTo(fx - w * 0.8, fy - h * 0.6, fx + (flick - 0.5) * 4 * k, fy - h);
+      g.quadraticCurveTo(fx + w * 0.8, fy - h * 0.6, fx + w, fy);
+      g.closePath();
+      g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+
   private outlineFootprint(b: Building) {
     const g = this.g;
     const pts = [this.toScreen(b.x, b.y), this.toScreen(b.x + b.w, b.y), this.toScreen(b.x + b.w, b.y + b.h), this.toScreen(b.x, b.y + b.h)];
@@ -442,7 +479,11 @@ export class Renderer {
     if (now - this.lastSmoke > (running ? 260 : 700)) {
       this.lastSmoke = now;
       for (const d of this.drawn) {
-        if (d.kind !== 'sprite' || !d.b || !d.sprite.smoke.length || !d.b.built) continue;
+        if (d.kind === 'sprite' && d.b?.burning !== undefined && this.puffs.length < 280) {
+          // Burning buildings pour out smoke.
+          for (let i = 0; i < 3; i++) this.puffs.push({ x: d.b.x + d.b.w / 2, y: d.b.y + d.b.h / 2, z: 0, age: 0, life: 3000 + i * 500, drift: (i - 1) * 6, size: -20 - i * 6 });
+        }
+        if (d.kind !== 'sprite' || !d.b || !d.sprite.smoke.length || !d.b.built || d.b.burned) continue;
         if (this.puffs.length > 260) break;
         if (hashString(`${d.b.id}:${Math.floor(now / 260)}`) % 3) continue;
         const [sx, sy] = d.sprite.smoke[0];
@@ -485,7 +526,7 @@ export class Renderer {
     const occupied = new Set<number>();
     for (const p of s.people) if (p.alive && p.home !== undefined && p.away === undefined) occupied.add(p.home);
     for (const d of this.drawn) {
-      if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length) continue;
+      if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length || d.b.burned) continue;
       const home = ['tent', 'hut', 'house', 'bighouse'].includes(d.b.kind);
       if (home && !occupied.has(d.b.id)) continue;
       const scale = (this.tw / d.sprite.tilePx) * (d.fit ?? 1);

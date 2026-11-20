@@ -1,15 +1,19 @@
 // Acts: the player's powers, bought with Favor. Plus the travelers waiting at
 // the gate after each Spark.
 import { useState } from 'preact/hooks';
-import { ACTS, actCost, applyPending, createSettler, nameChild, nameYear, sendOnQuest, welcomeParty } from '../sim/acts';
+import { ACTS, actCost, applyPending, createSettler, lawCost, nameChild, nameYear, raiseProphet, sendOnQuest, welcomeParty, whisperLaw } from '../sim/acts';
+import { answerPetition } from '../sim/petitions';
+import { FORTUNES, takeFortune } from '../sim/fortunes';
+import { LAWS, TENETS, hasLaw, opinion } from '../sim/society';
+import { RichText } from './format';
 import { QUEST_KIND_LABEL } from '../sim/names';
 import { DREAMS, DREAM_LABEL, JOB_LABEL, TRADES, TRAITS, TRAIT_LABEL } from '../sim/people';
 import { store } from '../game/store';
-import type { DreamId, JobId, Orientation, PersonDraft, QuestKind, Sex, TraitId } from '../sim/types';
+import type { DreamId, JobId, LawId, Orientation, PersonDraft, QuestKind, Sex, TenetId, TraitId } from '../sim/types';
 import { ageOf, fullName, yearOf } from '../sim/world';
 import { PersonLink } from './format';
 
-const ICON: Record<string, string> = { bless: '☀', name: '✎', settler: '✦', quest: '⚑' };
+const ICON: Record<string, string> = { bless: '☀', name: '✎', settler: '✦', quest: '⚑', law: '⚖', prophet: '☽' };
 
 export function ActsPanel() {
   const s = store.state!;
@@ -17,8 +21,13 @@ export function ActsPanel() {
   if (act === 'settler') return <SettlerForm />;
   if (act === 'quest') return <QuestForm />;
   if (act === 'name') return <NameForm />;
+  if (act === 'law') return <LawForm />;
+  if (act === 'prophet') return <ProphetForm />;
+  const cost = (id: string) => (id === 'prophet' && s.flags.freeProphet ? 0 : actCost(id as never));
   return (
     <>
+      <Fortunes />
+      <Petitions />
       <p class="note">
         You have <b class="cost">✦ {s.favor} Favor</b>. Every Spark earns 1; reaching your daily goal earns 5.
         {!s.focus.running && ' Anything that brings people or sends them away happens at dawn, when you next start working.'}
@@ -27,11 +36,11 @@ export function ActsPanel() {
         <div class="act" key={a.id}>
           <div class="icon" aria-hidden>{ICON[a.id]}</div>
           <div class="what"><b>{a.label}</b><span>{a.blurb}</span></div>
-          <span class="cost">✦{a.cost}</span>
-          <button class="btn small" disabled={s.favor < a.cost}
+          <span class="cost">{cost(a.id) ? `✦${cost(a.id)}${a.id === 'law' ? '+' : ''}` : 'free'}</span>
+          <button class="btn small" disabled={s.favor < cost(a.id) || (a.id === 'law' && !s.leader)}
             onClick={() => (a.id === 'bless'
               ? store.toast('Choose someone on the map or in People, then press Bless on their card.')
-              : store.setUi({ act: a.id as 'settler' | 'quest' | 'name', actTarget: undefined }))}>
+              : store.setUi({ act: a.id as 'settler' | 'quest' | 'name' | 'law' | 'prophet', actTarget: undefined }))}>
             {a.id === 'bless' ? 'How' : 'Begin'}
           </button>
         </div>
@@ -270,5 +279,127 @@ function Newest() {
       <h4>Newest arrivals</h4>
       {recent.map((p) => <div key={p.id}><PersonLink p={p} /></div>)}
     </div>
+  );
+}
+
+function Fortunes() {
+  const s = store.state!;
+  if (!s.fortunes.length) return null;
+  const take = (offer: number, id: Parameters<typeof takeFortune>[2]) => {
+    const r = takeFortune(s, offer, id);
+    if (!r.ok) store.toast(r.reason);
+    else { if (s.focus.running) applyPending(s); store.toast(r.text, 'gold'); }
+    store.changed();
+  };
+  return (
+    <div class="group">
+      {s.fortunes.map((offer, i) => (
+        <div key={offer.id} style={{ marginBottom: 14 }}>
+          <h4>{s.fortunes.length > 1 ? `Fortune ${i + 1} of ${s.fortunes.length}` : 'A Fortune'}, for reaching your daily goal. Choose one.</h4>
+          {offer.options.map((id) => (
+            <div class="party fortune" key={id}>
+              <b>{FORTUNES[id].title}</b>
+              <div class="story" style={{ fontStyle: 'normal' }}>{FORTUNES[id].text}</div>
+              <button class="btn small primary" onClick={() => take(offer.id, id)}>Choose</button>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Petitions() {
+  const s = store.state!;
+  if (!s.petitions.length) return null;
+  const answer = (id: number) => {
+    const r = answerPetition(s, id);
+    if (!r.ok) store.toast(r.reason); else store.toast('The prayer is answered.', 'gold');
+    store.changed();
+  };
+  return (
+    <div class="group">
+      <h4>Petitions at the Old Stone</h4>
+      {s.petitions.map((p) => (
+        <div class="party petition" key={p.id}>
+          <div class="story" style={{ fontStyle: 'normal' }}><RichText s={s} text={p.text} /></div>
+          <button class="btn small primary" disabled={s.favor < p.cost} onClick={() => answer(p.id)}>Answer · ✦{p.cost}</button>
+          <span class="sub" style={{ marginLeft: 8 }}>or let life take its course</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LawForm() {
+  const s = store.state!;
+  const leader = s.leader ? s.people[s.leader.person] : undefined;
+  const [error, setError] = useState('');
+  if (!leader) return <><Back title="Whisper a Law" /><p class="note">No one leads the settlement yet.</p></>;
+  const go = (id: LawId) => {
+    const r = whisperLaw(s, id);
+    if (!r.ok) { setError(r.reason); return; }
+    store.toast(hasLaw(s, id) ? 'The law is declared.' : 'The law is undone.', 'gold');
+    store.setUi({ act: null });
+    store.changed();
+  };
+  const feel = (id: LawId) => { const o = opinion(leader, id); return o > 0 ? 'would like it' : o < 0 ? 'would hate it' : "doesn't mind either way"; };
+  return (
+    <div class="form">
+      <Back title="Whisper a Law" />
+      <p class="note">You put the idea in <b>{leader.first} {leader.family}</b>'s head; {leader.sex === 'f' ? 'she' : 'he'} declares it. Laws a leader would hate cost more to whisper.</p>
+      {LAWS.map((l) => {
+        const inForce = hasLaw(s, l.id);
+        const cost = lawCost(s, l.id);
+        return (
+          <div class="party" key={l.id}>
+            <b>{l.name}</b>{inForce && <span class="tag" style={{ marginLeft: 6 }}>in force</span>}
+            <div class="story" style={{ fontStyle: 'normal' }}>{l.effect}</div>
+            <span class="sub">{leader.first} {inForce ? (opinion(leader, l.id) > 0 ? 'would hate to lose it' : "wouldn't miss it") : feel(l.id)}. </span>
+            <button class="btn small" disabled={s.favor < cost} onClick={() => go(l.id)}>{inForce ? 'Undo it' : 'Whisper it'} · ✦{cost}</button>
+          </div>
+        );
+      })}
+      {error && <div class="error">{error}</div>}
+    </div>
+  );
+}
+
+function ProphetForm() {
+  const s = store.state!;
+  const adults = s.people.filter((p) => p.alive && p.away === undefined && ageOf(s, p) >= 16).sort((a, b) => fullName(a).localeCompare(fullName(b)));
+  const [who, setWho] = useState<number>(adults.find((p) => p.traits.includes('pious'))?.id ?? adults[0]?.id ?? -1);
+  const [tenets, setTenets] = useState<TenetId[]>(['hearth']);
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const free = !!s.flags.freeProphet;
+  const toggle = (t: TenetId) => setTenets(tenets.includes(t) ? tenets.filter((x) => x !== t) : tenets.length < 2 ? [...tenets, t] : tenets);
+  const submit = (e: Event) => {
+    e.preventDefault();
+    const r = raiseProphet(s, who, tenets, name);
+    if (!r.ok) { setError(r.reason); return; }
+    store.toast('A new faith is born.', 'gold');
+    store.setUi({ act: null });
+    store.changed();
+  };
+  return (
+    <form class="form" onSubmit={submit}>
+      <Back title={`Raise a Prophet · ${free ? 'free' : `✦${actCost('prophet')}`}`} />
+      <p class="note">Someone wakes certain of something, and founds a faith. It spreads through families and friends, keeps a holy day, and may one day split.</p>
+      <label>Who wakes with the calling</label>
+      <select value={who} onChange={(e) => setWho(Number((e.target as HTMLSelectElement).value))}>
+        {adults.map((p) => <option key={p.id} value={p.id}>{fullName(p)} ({p.traits.map((t) => TRAIT_LABEL[t]).join(', ')})</option>)}
+      </select>
+      <label>What they teach (one or two)</label>
+      {(Object.keys(TENETS) as TenetId[]).map((t) => (
+        <button type="button" key={t} class={`party${tenets.includes(t) ? ' fortune' : ''}`} style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={() => toggle(t)}>
+          <b>{TENETS[t].name}</b> <span class="sub">{TENETS[t].text}</span>
+        </button>
+      ))}
+      <label>Name of the faith (optional)</label>
+      <input type="text" maxLength={40} placeholder="Leave blank and the followers will name it" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} />
+      {error && <div class="error">{error}</div>}
+      <div style={{ marginTop: 12 }}><button class="btn primary" type="submit" disabled={!free && s.favor < actCost('prophet')}>Raise a prophet</button></div>
+    </form>
   );
 }

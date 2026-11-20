@@ -67,7 +67,7 @@ export interface Person {
   children: number[];
   home?: number;
   health: number;
-  sick?: { until: number; severity: number };
+  sick?: { until: number; severity: number; plague?: boolean };
   injured?: { until: number };
   pregnant?: { due: number; father: number };
   /** Quest id while away from the settlement. */
@@ -314,6 +314,8 @@ export interface GameState {
     healerUntil?: number;
     /** A Fortune promised a bumper harvest. */
     harvestBoost?: boolean;
+    /** Day a fire last left a family homeless (one Chronicle line per fire). */
+    lastFireLoss?: number;
     /** A Fortune made the next Raise a Prophet free. */
     freeProphet?: boolean;
   };

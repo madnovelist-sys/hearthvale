@@ -5,6 +5,7 @@ import { killPerson } from './life';
 import { questPlace, nickname } from './names';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite } from './planner';
+import { plantFaithSeed } from './society';
 import { chance, int, pick, weighted } from './rng';
 import { DAYS_PER_YEAR, type GameState, type Person, type Quest, type QuestKind } from './types';
 import { ageOf, darkFactor, hasTrait, isBlessed, possessive, present, pronoun, tone } from './world';
@@ -195,6 +196,7 @@ function resolve(s: GameState, q: Quest) {
     case 'relic': {
       ret();
       s.flags.relics += 1;
+      plantFaithSeed(s, 'relics');
       const [thing, short] = pick(s.rng, [
         ['a carved stone that was always warm', 'Warm Stone'],
         ['a bronze mask with no eyeholes', 'Blind Mask'],

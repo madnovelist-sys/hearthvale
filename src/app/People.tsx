@@ -8,6 +8,9 @@ import { store } from '../game/store';
 import type { GameState, Person } from '../sim/types';
 import { ageOf, fullName, isBlessed, yearOf } from '../sim/world';
 import { CLOTHES } from '../render/palette';
+import { leaderTitle } from '../sim/society';
+
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 import { PersonLink, RichText, ageText, when } from './format';
 
 type Filter = 'here' | 'yours' | 'away' | 'gone';
@@ -96,6 +99,9 @@ export function PersonCard({ id }: { id: number }) {
         {p.injured && <span class="tag red">Injured</span>}
         {p.pregnant && <span class="tag">Expecting</span>}
         {p.preparing && <span class="tag gold">Leaves on a quest at dawn</span>}
+        {s.leader?.person === p.id && p.alive && <span class="tag gold">{leaderTitle(s)}</span>}
+        {p.faith !== undefined && s.faiths[p.faith] && !s.faiths[p.faith].gone && <span class="tag">{cap(s.faiths[p.faith].name)}</span>}
+        {s.buildings.filter((b) => b.owner === p.id && !b.removed && b.name).map((b) => <span class="tag" key={b.id}>Runs {b.name}</span>)}
       </div>
       {p.backstory && <p class="story">{p.backstory}</p>}
       <section>
@@ -127,6 +133,7 @@ export function PersonCard({ id }: { id: number }) {
         <button class={`btn small${p.followed ? ' active' : ''}`} onClick={() => { p.followed = !p.followed; store.changed(); }}>
           {p.followed ? 'Following' : 'Follow'}
         </button>
+        <button class="btn small" onClick={() => store.setUi({ tree: p.id })}>Family tree</button>
         {canAct && <button class="btn small" onClick={doBless}>Bless <span class="cost">✦1</span></button>}
         {canAct && adult && !p.preparing && (
           <button class="btn small" onClick={() => store.setUi({ panel: 'acts', act: 'quest', actTarget: p.id })}>Send on a quest <span class="cost">✦3</span></button>
@@ -149,7 +156,10 @@ export function BuildingCard({ id }: { id: number }) {
   return (
     <div class="card paper" role="dialog" aria-label={BUILDING_LABEL[b.kind]}>
       <button class="btn small ghost close" onClick={() => store.setUi({ selection: null })} aria-label="Close">✕</button>
-      <h3>{b.kind === 'hearth' ? `The Hearth of ${s.name}` : BUILDING_LABEL[b.kind]}</h3>
+      <h3>{b.kind === 'hearth' ? `The Hearth of ${s.name}` : b.name ?? BUILDING_LABEL[b.kind]}</h3>
+      {b.name && <div class="sub">{BUILDING_LABEL[b.kind]}{b.owner !== undefined && s.people[b.owner] ? <>, run by <PersonLink p={s.people[b.owner]} /></> : ''}</div>}
+      {b.burning !== undefined && <p class="note" style={{ background: '#f3d2cc' }}>On fire!</p>}
+      {b.burned && <p class="note">A burned-out shell. It will be cleared away.</p>}
       <div class="sub">
         {b.built ? (b.kind === 'hearth' ? 'Lit in the spring of Year 1' : `Built ${when(b.completed ?? b.founded)}`) : `Being built: ${Math.round((b.progress / Math.max(1, b.required)) * 100)}%`}
       </div>
