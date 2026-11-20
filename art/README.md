@@ -14,7 +14,7 @@ Images made against a footprint template line up exactly. Others work too: the a
 | `buildings/bronze/bld_home_bronze_1x1_v01_winter.png` | The same home with snow |
 | `nature/nat_broadleaf_any_1x1_v01_autumn.png` | A broadleaf tree in autumn |
 
-Up to three variants (`v01`–`v03`) of anything are used at random. States the game looks for: `winter` for buildings; `spring`, `autumn` and `winter` for trees.
+Any number of variants (`v01`, `v02`, …) of anything are used at random. States the game looks for: `winter` for buildings; `spring`, `autumn` and `winter` for trees.
 
 ## Asset names the game uses today
 
