@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { Renderer } from '../render/renderer';
 import { store } from '../game/store';
 import { view } from './view';
+import { skyAt } from '../game/sky';
 
 export function MapView() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -13,7 +14,7 @@ export function MapView() {
     const r = new Renderer(canvas);
     view.renderer = r;
     const s0 = store.state;
-    if (s0) { r.centerOn(s0.hearth.x + 0.5, s0.hearth.y + 0.5); r.night = s0.focus.running ? 0 : 1; }
+    if (s0) { r.centerOn(s0.hearth.x + 0.5, s0.hearth.y + 0.5); r.night = skyAt(s0, Date.now()).night; }
 
     // A quiet companion: 30 frames a second while you work, 10 while the city
     // sleeps, so it costs little battery sitting beside your work all day.
@@ -23,11 +24,13 @@ export function MapView() {
       raf = requestAnimationFrame(loop);
       const s = store.state;
       if (!s) return;
-      const interval = s.focus.running || r.night > 0.02 && r.night < 0.98 ? 1000 / 30 : 1000 / 10;
+      const interval = s.focus.running ? 1000 / 30 : 1000 / 10;
       if (t - lastDraw < interval - 2) return;
       lastDraw = t;
       store.tick();
-      r.frame(s, t, !!s.focus.running, store.ui.selection);
+      const running = !!s.focus.running;
+      canvas.classList.toggle('frozen', !running);
+      r.frame(s, t, running, store.ui.selection, skyAt(s, Date.now()).night);
     };
     raf = requestAnimationFrame(loop);
 

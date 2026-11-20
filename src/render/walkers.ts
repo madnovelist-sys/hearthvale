@@ -1,6 +1,7 @@
 // The little people. Purely cosmetic: they walk between home, work and the
 // fire along worn paths, and go indoors when the city sleeps.
 import { buildCostGrid, findPath } from '../sim/path';
+import { currentTarget } from '../sim/forest';
 import { doorOf, workSite } from '../sim/planner';
 import { hashString } from '../sim/rng';
 import { TREE, type GameState, type Person } from '../sim/types';
@@ -134,8 +135,9 @@ export class Walkers {
   private workTarget(s: GameState, p: Person, home: { x: number; y: number }): { x: number; y: number } | null {
     const h = hashString(`${p.id}:${s.day}`);
     if (p.job === 'child') return this.near(s, s.hearth, 3, h) ?? this.near(s, home, 2, h);
-    if (p.job === 'woodcutter' && this.treeTiles.length) {
-      const t = this.treeTiles[h % this.treeTiles.length];
+    const felling = currentTarget(s);
+    if (p.job === 'woodcutter' && (felling >= 0 || this.treeTiles.length)) {
+      const t = felling >= 0 ? felling : this.treeTiles[h % this.treeTiles.length];
       return this.adjacent(s, t % s.map.w, Math.floor(t / s.map.w));
     }
     if (p.job === 'gatherer') return this.near(s, home, 7, h);

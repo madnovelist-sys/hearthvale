@@ -11,6 +11,7 @@ import { BuildingCard, PeoplePanel, PersonCard } from './People';
 import { SettingsPanel } from './Settings';
 import { SocietyPanel } from './Society';
 import { FamilyTree } from './FamilyTree';
+import { ItemDialog } from './ItemDialog';
 
 const TITLES: Record<Panel, string> = {
   chronicle: 'The Chronicle', people: 'People', society: 'Society', acts: 'Acts', arrivals: 'Arrivals', settings: 'Settings', art: 'Art',
@@ -37,8 +38,8 @@ export function App() {
       <Hud />
       {!s.focus.running && !ui.ended && !ui.gapMs && !panel && !ui.selection && (
         <div class="sleep">
-          <b>{s.name} sleeps.</b>
-          <span>Press Start working when you begin. The sun rises while you work.</span>
+          <b>Time stands still in {s.name}.</b>
+          <span>Press Start working when you begin, and the city lives again.</span>
         </div>
       )}
       <ZoomButtons />
@@ -63,6 +64,7 @@ export function App() {
       {ui.selection?.kind === 'building' && <BuildingCard id={ui.selection.id} />}
       {ui.gapMs ? <GapDialog /> : ui.ended ? <SessionEnd /> : null}
       {ui.tree !== undefined && !ui.ended && !ui.gapMs && <FamilyTree id={ui.tree} />}
+      {ui.item !== undefined && !ui.ended && !ui.gapMs && <ItemDialog id={ui.item} />}
       {ui.logWords && !ui.ended && <WordsDialog />}
       <div class="toasts" aria-live="polite">
         {ui.toasts.map((t) => <div class={`toast paper ${t.tone ?? ''}`} key={t.id}>{t.text}</div>)}

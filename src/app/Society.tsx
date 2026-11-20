@@ -13,6 +13,11 @@ export function SocietyPanel() {
   const faiths = s.faiths.filter((f) => !f.gone).map((f) => ({ f, n: followers(s, f.id) })).sort((a, b) => b.n - a.n);
   const faithless = s.people.filter((p) => p.alive && !p.left && p.away === undefined && (p.faith === undefined || s.faiths[p.faith]?.gone)).length;
   const businesses = s.buildings.filter((b) => !b.removed && b.name);
+  const heirlooms = s.items.filter((i) => !i.lost && !i.buried).sort((a, b) => a.made - b.made);
+  const gone = s.items.length - heirlooms.length;
+  const herd = s.buildings.reduce((n, b) => n + (b.kind === 'pen' && b.built && !b.removed ? b.herd ?? 0 : 0), 0);
+  const dogs = s.pets.filter((p) => p.alive && p.kind === 'dog').length;
+  const cats = s.pets.filter((p) => p.alive && p.kind === 'cat').length;
   return (
     <>
       {s.plague && (
@@ -48,6 +53,24 @@ export function SocietyPanel() {
           </div>
         ))}
         {faiths.length > 0 && <p class="sub">{faithless} people hold no faith.</p>}
+      </div>
+      <div class="group">
+        <h4>Heirlooms</h4>
+        {heirlooms.length === 0 && <p class="note">None yet. Things worth keeping come home from quests, from master crafters' hands, and as wedding gifts.</p>}
+        {heirlooms.map((it) => {
+          const holder = it.owner !== undefined ? s.people[it.owner] : undefined;
+          const age = Math.floor((s.day - it.made) / 360);
+          return (
+            <div key={it.id} class="row" onClick={() => store.setUi({ item: it.id })}>
+              <div class="who"><b>{cap(it.name)}</b><span>{it.village ? 'In the gathering place' : holder ? `${holder.first} ${holder.family}` : ''}{age ? ` · ${age} years old` : ''}{it.history.filter((h) => h.how === 'inherited').length ? ` · ${it.history.filter((h) => h.how === 'inherited').length + 1} generations` : ''}</span></div>
+            </div>
+          );
+        })}
+        {gone > 0 && <p class="sub">{gone} more lie in graves or were lost far away.</p>}
+      </div>
+      <div class="group">
+        <h4>Animals</h4>
+        <p>{herd ? `${herd} goats and sheep in the pens.` : 'No herds yet.'} {dogs ? `${dogs} ${dogs === 1 ? 'dog' : 'dogs'}` : ''}{dogs && cats ? ' and ' : ''}{cats ? `${cats} ${cats === 1 ? 'cat' : 'cats'}` : ''}{dogs || cats ? ' live with families.' : ''} {s.wild.deer > 0 ? `About ${s.wild.deer} deer in the woods nearby.` : 'No deer have been seen nearby in a long while.'}</p>
       </div>
       <div class="group">
         <h4>Businesses</h4>

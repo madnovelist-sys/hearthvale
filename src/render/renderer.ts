@@ -6,6 +6,7 @@ import { hashString } from '../sim/rng';
 import { C, CLOTHES, GRASS_BY_SEASON, HAIR, SKIN, mix, shade } from './palette';
 import { buildingSprite, graveSprite, scaffoldSprite, treeSprite, type Sprite } from './sprites';
 import { Walkers } from './walkers';
+import { Fauna, drawAnimal, drawBirds } from './fauna';
 import type { Selection } from '../game/store';
 
 const BASE_TW = 64; // tile width in CSS px at zoom 1
@@ -17,7 +18,8 @@ interface Flake { x: number; y: number; speed: number; sway: number }
 
 type Drawable =
   | { depth: number; kind: 'sprite'; sprite: Sprite; gx: number; gy: number; b?: Building; alpha?: number; fit?: number }
-  | { depth: number; kind: 'walker'; id: number };
+  | { depth: number; kind: 'walker'; id: number }
+  | { depth: number; kind: 'animal'; key: string };
 
 export class Renderer {
   readonly g: CanvasRenderingContext2D;
@@ -28,6 +30,7 @@ export class Renderer {
   /** 0 = full day, 1 = full night. The city is dark while you're not working. */
   night = 1;
   walkers = new Walkers();
+  fauna = new Fauna();
   private puffs: Puff[] = [];
   private flakes: Flake[] = [];
   private last = 0;
@@ -86,14 +89,25 @@ export class Renderer {
 
   // -------------------------------------------------------------------------
 
-  frame(s: GameState, now: number, running: boolean, selection: Selection) {
+  /** When the city was paused: while you rest, time stands still and nothing moves. */
+  private frozenAt: number | null = null;
+
+  /** skyNight: how dark the sky is (0 day … 1 night), from the time of day. */
+  frame(s: GameState, now: number, running: boolean, selection: Selection, skyNight = 0) {
     // Clamp: timestamps can jump (sleep, wake, a reset clock); never run time backwards.
-    const dt = this.last ? Math.max(0, Math.min(250, now - this.last)) : 16;
+    const realDt = this.last ? Math.max(0, Math.min(250, now - this.last)) : 16;
     this.last = now;
-    const target = running ? 0 : 1;
-    this.night += (target - this.night) * Math.min(1, dt / 900);
-    if (Math.abs(this.night - target) < 0.002) this.night = target;
-    this.walkers.update(s, now, dt, this.night);
+    if (running) this.frozenAt = null;
+    else this.frozenAt ??= now;
+    const dt = running ? realDt : 0;
+    const anim = this.frozenAt ?? now; // animation time stops while paused
+    this.night += (skyNight - this.night) * Math.min(1, realDt / 900);
+    if (Math.abs(this.night - skyNight) < 0.002) this.night = skyNight;
+    if (running) {
+      this.walkers.update(s, now, dt, this.night);
+      this.fauna.update(s, this.walkers, now, dt, this.night, this.w, this.h);
+    }
+    now = anim;
 
     const g = this.g;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -120,6 +134,7 @@ export class Renderer {
     this.drawObjects(s, now, selection);
     this.drawHearthFire(s, now, running);
     this.updateSmoke(s, now, dt, running);
+    drawBirds(this.g, this.fauna.birds, now);
     this.drawLighting(s, now);
     if (season === 3) this.drawSnow(dt);
   }
@@ -274,17 +289,21 @@ export class Renderer {
     const { map } = s;
     for (let y = r.y0; y <= r.y1; y++) {
       for (let x = r.x0; x <= r.x1; x++) {
-        const t = map.trees[y * map.w + x];
+        const i = y * map.w + x;
+        const t = map.trees[i];
         if (t === TREE.NONE) continue;
         const v = hashString(`${x},${y}`) % 3;
-        list.push({ depth: x + y + 2, kind: 'sprite', sprite: treeSprite(t, winter ? 3 : season, v), gx: x + 1, gy: y + 1 });
+        // Saplings are drawn small and grow over the years.
+        const g = map.growth?.[i] ?? 1;
+        const fit = t !== TREE.STUMP && g < 1 ? 0.3 + 0.7 * g : undefined;
+        list.push({ depth: x + y + 2, kind: 'sprite', sprite: treeSprite(t, winter ? 3 : season, v), gx: x + 1, gy: y + 1, fit });
       }
     }
     for (const b of s.buildings) {
       if (b.removed || b.kind === 'field') continue;
       if (b.x + b.w < r.x0 || b.x > r.x1 + 1 || b.y + b.h < r.y0 || b.y > r.y1 + 1) continue;
       const sprite = b.built ? buildingSprite(b.kind, b.variant, winter) : scaffoldSprite(b.w, b.h, b.progress / Math.max(1, b.required));
-      const depth = b.kind === 'graveyard' ? b.x + b.y + 0.5 : b.x + b.w + b.y + b.h;
+      const depth = b.kind === 'graveyard' || b.kind === 'pen' ? b.x + b.y + 0.5 : b.x + b.w + b.y + b.h; // low enclosures sit under what's inside them
       // Art made for a different footprint (e.g. a 2×2 granary in an older city's 1×1 spot) is scaled to fit.
       const fit = sprite.tiles && sprite.tiles !== b.w ? b.w / sprite.tiles : undefined;
       list.push({ depth, kind: 'sprite', sprite, gx: b.x + b.w, gy: b.y + b.h, b, fit });
@@ -295,6 +314,10 @@ export class Renderer {
     for (const w of this.walkers.list.values()) {
       if (w.alpha <= 0.02) continue;
       list.push({ depth: w.x + w.y + 0.5, kind: 'walker', id: w.id });
+    }
+    for (const a of this.fauna.list.values()) {
+      if (!a.visible) continue;
+      list.push({ depth: a.x + a.y + 0.45, kind: 'animal', key: a.key });
     }
     list.sort((a, b) => a.depth - b.depth);
     this.drawn = list;
@@ -378,6 +401,14 @@ export class Renderer {
           this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
         }
         if (d.b?.burning !== undefined) this.drawFlames(d.b, now);
+        continue;
+      }
+      if (d.kind === 'animal') {
+        const a = this.fauna.list.get(d.key);
+        if (!a) continue;
+        const c = this.toScreen(a.x, a.y);
+        if (c.x < -20 || c.x > this.w + 20 || c.y < -30 || c.y > this.h + 20) continue;
+        drawAnimal(g, a, c.x, c.y, tw / 64, now);
         continue;
       }
       const w = this.walkers.list.get(d.id)!;

@@ -4,7 +4,8 @@ import { F, log, P } from './chronicle';
 import { familyName } from './names';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite } from './planner';
-import { int, pick, weighted } from './rng';
+import { chance, int, pick, weighted } from './rng';
+import { makeItem } from './items';
 import { hasLaw } from './society';
 import type { GameState, Party, PersonDraft } from './types';
 
@@ -112,6 +113,8 @@ export function settleParty(s: GameState, party: Party, patron = false) {
   const ids = created.map((p) => p.id);
   if (patron) {
     const p = created[0];
+    // Your settlers sometimes bring a keepsake from wherever they came from.
+    if (chance(s.rng, 0.5)) makeItem(s, pick(s.rng, ['ring', 'cloak', 'comb'] as const), p, 'brought');
     log(s, 'patron', `${P(p.id)} arrived at dawn, as if ${p.sex === 'f' ? 'she' : 'he'} had been expected. ${p.backstory ?? ''}`.trim(), ids, 5, `The Year ${p.first} Came`);
   } else {
     // Turn the first mention of each newcomer into a clickable name.

@@ -3,6 +3,8 @@ import { log, nameYear, P } from './chronicle';
 import { economyDay, economySeason, assignJobs } from './economy';
 import { lifeDay } from './life';
 import { momentsDay } from './moments';
+import { deerYear, herdsSeason, petsYear } from './animals';
+import { itemsYear } from './items';
 import { clearRuins, fireDay, plagueDay, plagueSeason } from './calamity';
 import { applyHarvestBoost } from './fortunes';
 import { petitionsDay } from './petitions';
@@ -20,7 +22,7 @@ import { population, seasonIndex, yearOf } from './world';
 export const SAVE_VERSION = 1;
 
 export const DEFAULT_GOALS: Goals = { track: 'time', dailyMinutes: 60, dailyWords: 1000, sparkMinutes: 20, sparkWords: 250 };
-export const DEFAULT_SETTINGS: Settings = { darkness: 50, weirdness: 1, awayMinutes: 15, notify: false };
+export const DEFAULT_SETTINGS: Settings = { darkness: 50, weirdness: 1, awayMinutes: 15, notify: false, dayNight: 'clock', stopAt: null };
 
 export interface FoundingOptions {
   seed: number;
@@ -55,13 +57,16 @@ export function foundSettlement(opts: FoundingOptions): GameState {
     goals: { ...(opts.goals ?? DEFAULT_GOALS) },
     settings: { ...(opts.settings ?? DEFAULT_SETTINGS) },
     focus: { running: null, carryMs: 0, sparkMs: 0, sparkWords: 0, totalMs: 0, days: {}, sessions: [] },
-    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0, faith: 0, petition: 0, fortune: 0 },
+    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0, faith: 0, petition: 0, fortune: 0, pet: 0, item: 0 },
     flags: { relics: 0, knowledge: 0 },
     lateReturns: [],
     laws: [],
     faiths: [],
     petitions: [],
     fortunes: [],
+    pets: [],
+    wild: { deer: -1 },
+    items: [],
   };
   const r = s.rng;
 
@@ -126,6 +131,9 @@ export function stepDay(s: GameState) {
   checkStage(s);
   s.day += 1;
   if (s.day % DAYS_PER_YEAR === 0) {
+    petsYear(s);
+    deerYear(s);
+    itemsYear(s);
     faithYear(s);
     businessYear(s);
     nameYear(s, yearOf(s.day - 1));
@@ -137,6 +145,7 @@ function onSeason(s: GameState) {
   applyHarvestBoost(s);
   questsSeason(s);
   societySeason(s);
+  herdsSeason(s);
   plagueSeason(s);
   clearRuins(s);
   if (seasonIndex(s.day) === 0) omens(s);

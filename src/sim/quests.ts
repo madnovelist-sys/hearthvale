@@ -6,6 +6,7 @@ import { questPlace, nickname } from './names';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite } from './planner';
 import { plantFaithSeed } from './society';
+import { itemsOf, itemsReturn, makeItem } from './items';
 import { chance, int, pick, weighted } from './rng';
 import { DAYS_PER_YEAR, type GameState, type Person, type Quest, type QuestKind } from './types';
 import { ageOf, darkFactor, hasTrait, isBlessed, possessive, present, pronoun, tone } from './world';
@@ -112,6 +113,7 @@ function resolve(s: GameState, q: Quest) {
   if (isBlessed(s, leader)) luck *= 1.6;
   if (q.patron) luck *= 1.25;
   for (const t of ['brave', 'clever', 'cunning', 'strong'] as const) if (hasTrait(leader, t)) luck *= 1.15;
+  if (itemsOf(s, leader.id).some((i) => i.kind === 'blade')) luck *= 1.2; // a good sword helps
   const dark = darkFactor(s);
   const weird = s.settings.weirdness;
   const outcome = weighted<Outcome>(s.rng, [
@@ -144,6 +146,11 @@ function resolve(s: GameState, q: Quest) {
       if (leader.dream === 'sea' && q.kind === 'sea') leader.dreamMet = true;
       if (chance(s.rng, 0.3)) leader.nickname = nickname(s.rng, 'luck');
       log(s, 'return', `After ${ago} away, ${party} came home from ${q.place} loaded with plunder: ${loot}. There was a feast that lasted three days.`, q.members, 7, `The Year of ${leader.first}'s Return`);
+      if (chance(s.rng, 0.45)) {
+        const kind = pick(s.rng, ['blade', 'torc', 'ring'] as const);
+        const item = makeItem(s, kind, leader, 'brought', kind === 'blade' && loot.includes('sword') ? 'the Unliftable Sword' : undefined);
+        log(s, 'return', `Among the plunder was ${item.name}, which ${F(leader.id)} kept.`, [leader.id], 3);
+      }
       break;
     }
     case 'knowledge': {
@@ -197,12 +204,13 @@ function resolve(s: GameState, q: Quest) {
       ret();
       s.flags.relics += 1;
       plantFaithSeed(s, 'relics');
-      const [thing, short] = pick(s.rng, [
-        ['a carved stone that was always warm', 'Warm Stone'],
-        ['a bronze mask with no eyeholes', 'Blind Mask'],
-        ['a bone flute that played a note nobody had blown', 'Bone Flute'],
-        ['a spiral disc of polished jet', 'Jet Disc'],
+      const [thing, short, kind] = pick(s.rng, [
+        ['a carved stone that was always warm', 'Warm Stone', 'stone'],
+        ['a bronze mask with no eyeholes', 'Blind Mask', 'mask'],
+        ['a bone flute that played a note nobody had blown', 'Bone Flute', 'flute'],
+        ['a spiral disc of polished jet', 'Jet Disc', 'disc'],
       ] as const);
+      makeItem(s, kind, leader, 'found', `the ${short}`);
       const strange = weird >= 2 ? ' At night, people swore it hummed.' : '';
       log(s, 'return', `${party} came back from ${q.place} after ${ago} with ${thing}.${strange} ${cap(pronoun(leader))} kept it wrapped in wool.`, q.members, 6, `The Year of the ${short}`);
       break;
@@ -242,6 +250,7 @@ function lateReturn(s: GameState, p: Person | undefined) {
   p.origin = 'returned';
   p.renown += 30;
   p.nickname = nickname(s.rng, 'return');
+  itemsReturn(s, p);
   const site = findSite(s, 'tent');
   if (site) p.home = addBuilding(s, 'tent', site.x, site.y).id;
   log(s, 'return', `${years} years after leaving, ${P(p.id)} walked back into ${s.name}, grey and quiet, carrying nothing. ${cap(pronoun(p))} would not say where ${pronoun(p)} had been.`, [p.id], 9, `The Year ${p.first} Came Back`);

@@ -4,6 +4,8 @@ import { F, log, P } from './chronicle';
 import { assignJobs } from './economy';
 import { DREAM_LABEL, childOf, nameChild } from './people';
 import { hasLaw, lawMood } from './society';
+import { orphanPets } from './animals';
+import { itemsOf, passHeirlooms, weddingKeepsake } from './items';
 import { addBuilding, findSite, moveIn } from './planner';
 import { chance, int, pick, rand } from './rng';
 import { DAYS_PER_YEAR, type GameState, type Person } from './types';
@@ -53,6 +55,8 @@ export function killPerson(s: GameState, p: Person, cause: string, text: string,
   }
   bury(s, p);
   rehomeOrphans(s, p);
+  orphanPets(s, p);
+  passHeirlooms(s, p);
 }
 
 function bury(s: GameState, p: Person) {
@@ -244,6 +248,7 @@ export function lifeDay(s: GameState) {
     if (p.spouse !== undefined) base += 8;
     if (hungry) base -= 20;
     base += lawMood(s, p);
+    if (itemsOf(s, p.id).length) base += 3; // something of their family's to hold onto
     if (p.sick || p.injured) base -= 10;
     base += Math.min(10, (s.stores.goods / Math.max(1, people.length)) * 2);
     p.mood += (base - p.mood) * 0.02;
@@ -372,6 +377,7 @@ function wed(s: GameState, a: Person, b: Person) {
   const season = seasonIndex(s.day);
   const where = ['under the blossoming trees', 'in the long summer light', 'at the harvest fire', 'in the snow, by the hearth'][season];
   log(s, 'wedding', `${P(a.id)} and ${P(b.id)} were wed ${where}.`, [a.id, b.id], 4, `The Year ${a.first} and ${b.first} Wed`);
+  weddingKeepsake(s, a, b);
   for (const x of [a, b]) {
     if (x.dream === 'love' && !x.dreamMet) x.dreamMet = true;
   }

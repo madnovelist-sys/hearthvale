@@ -2,6 +2,7 @@
 // often, backed up daily, and can be exported to a file at any time.
 import type { GameState } from '../sim/types';
 import { SAVE_VERSION } from '../sim/sim';
+import { ensureForest } from '../sim/forest';
 
 const DB_NAME = 'hearthwork';
 const STORE = 'saves';
@@ -96,14 +97,22 @@ function migrate(s: GameState): GameState {
   s.arrivals ??= [];
   s.goals.track ??= 'time';
   s.settings.awayMinutes ??= 15;
+  ensureForest(s.map);
   s.laws ??= [];
   s.faiths ??= [];
   s.petitions ??= [];
   s.fortunes ??= [];
+  s.pets ??= [];
+  s.wild ??= { deer: -1 };
+  s.items ??= [];
+  s.nextId.pet ??= 0;
+  s.nextId.item ??= 0;
   s.nextId.faith ??= 0;
   s.nextId.petition ??= 0;
   s.nextId.fortune ??= 0;
   s.settings.notify ??= false;
+  s.settings.dayNight ??= 'clock';
+  s.settings.stopAt ??= null;
   return s;
 }
 

@@ -27,7 +27,7 @@ export function Founding() {
     r.cam.zoom = 0.62;
     r.centerOn(preview.hearth.x - 4, preview.hearth.y + 2);
     let raf = 0;
-    const loop = (t: number) => { raf = requestAnimationFrame(loop); r.frame(preview, t, true, null); };
+    const loop = (t: number) => { raf = requestAnimationFrame(loop); r.frame(preview, t, true, null, 0); };
     raf = requestAnimationFrame(loop);
     const ro = new ResizeObserver(() => r.resize());
     ro.observe(ref.current!);

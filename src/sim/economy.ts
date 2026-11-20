@@ -1,9 +1,10 @@
 // Just enough economy to make stories: food through the seasons, wood for
 // building, pots and bronze for comfort. And who does which job.
 import { log, P } from './chronicle';
-import { settlementRegion } from './planner';
-import { chance, int, pick, range } from './rng';
-import { TREE, type GameState, type JobId, type Person } from './types';
+import { pick, range } from './rng';
+import type { GameState, JobId, Person } from './types';
+import { chopWood, forestMonth } from './forest';
+import { herdYield } from './animals';
 import { ageOf, isBlessed, present, seasonIndex, tone } from './world';
 import { hasLaw } from './society';
 
@@ -63,9 +64,8 @@ export function economyDay(s: GameState) {
       if (p.job === 'fisher' && hasDock) f *= 1.2;
       food += f;
     } else if (p.job === 'woodcutter') {
-      // A felled tree gives a lot of wood; without trees nearby, cutters walk far for less.
-      const near = chance(s.rng, 0.08) ? fellTree(s) : true;
-      wood += (season === 3 ? 1.0 : 1.6) * rate * (near ? 1 : 0.5);
+      // Wood comes from real trees: the nearest grown ones, farther as the woods thin.
+      wood += chopWood(s, (season === 3 ? 1.0 : 1.6) * rate);
     } else if (p.job === 'potter') {
       goods += (hasKiln ? 1 : 0.4) * rate;
     } else if (p.job === 'smith') {
@@ -77,6 +77,9 @@ export function economyDay(s: GameState) {
     if (pop < 12 && ageOf(s, p) >= 14) wood += 0.25;
   }
 
+  const [milk, wool] = herdYield(s, people.filter((p) => p.job === 'herder' && !p.sick && !p.injured).length);
+  food += milk;
+  goods += wool;
   s.stores.food += food;
   s.stores.wood += wood;
   s.stores.goods += goods;
@@ -110,7 +113,7 @@ export function economyDay(s: GameState) {
     starve(s, people, shortfall);
   }
 
-  if (s.day % 7 === 0) regrowTrees(s);
+  if (s.day % 30 === 11) forestMonth(s);
 }
 
 function starve(s: GameState, people: Person[], shortfall: number) {
@@ -129,43 +132,6 @@ function starve(s: GameState, people: Person[], shortfall: number) {
     const loss = shortfall * (a < 10 || a >= 60 ? 0.9 : 0.6) * (hasLaw(s, 'share-harvest') ? 0.6 : 1);
     p.health = Math.max(floor, p.health - loss);
     p.mood -= shortfall * 0.8;
-  }
-}
-
-function fellTree(s: GameState): boolean {
-  const { map, hearth } = s;
-  const region = settlementRegion(s);
-  let best = -1;
-  let bestD = Infinity;
-  const R = 22;
-  for (let y = Math.max(0, hearth.y - R); y < Math.min(map.h, hearth.y + R); y++) {
-    for (let x = Math.max(0, hearth.x - R); x < Math.min(map.w, hearth.x + R); x++) {
-      const i = y * map.w + x;
-      const t = map.trees[i];
-      if (!region[i] || !(t === TREE.BROADLEAF || t === TREE.PINE)) continue;
-      const d = Math.hypot(x - hearth.x, y - hearth.y) + ((x * 7 + y * 13) % 5) * 0.6;
-      if (d < bestD) { bestD = d; best = i; }
-    }
-  }
-  if (best >= 0) map.trees[best] = TREE.NONE;
-  return best >= 0;
-}
-
-function regrowTrees(s: GameState) {
-  const { map } = s;
-  for (let k = 0; k < 14; k++) {
-    const x = int(s.rng, 1, map.w - 2);
-    const y = int(s.rng, 1, map.h - 2);
-    const i = y * map.w + x;
-    if (map.trees[i] || map.occ[i] || map.wear[i] > 0.4 || map.terrain[i] !== 0) continue;
-    let near = 0;
-    let pines = 0;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const t = map.trees[(y + dy) * map.w + (x + dx)];
-      if (t === TREE.BROADLEAF || t === TREE.PINE) near++;
-      if (t === TREE.PINE) pines++;
-    }
-    if (near >= 2) map.trees[i] = pines >= 2 ? TREE.PINE : TREE.BROADLEAF;
   }
 }
 
@@ -217,6 +183,7 @@ export function assignJobs(s: GameState) {
   if (s.stores.wood > 4000) cutters = 0;
   target.woodcutter = n >= 4 ? Math.max(s.stores.wood > 4000 ? 0 : 1, cutters) : 0;
   target.healer = pop >= 15 ? 1 + Math.floor(pop / 70) : 0;
+  target.herder = s.buildings.filter((b) => b.kind === 'pen' && b.built && !b.removed && (b.herd ?? 0) > 0).length;
   target.potter = pop >= 20 && !lean ? 1 + Math.floor(pop / 45) : 0;
   target.smith = pop >= 30 && !lean ? 1 + Math.floor(pop / 60) : 0;
   const rest = Math.max(1, n - Object.values(target).reduce((a, b) => a + (b ?? 0), 0));

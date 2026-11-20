@@ -32,6 +32,8 @@ a { color: inherit; }
 
 .map { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
 .map.grab { cursor: grab; }
+.map { transition: filter 1.2s ease; }
+.map.frozen { filter: saturate(0.55) sepia(0.12) brightness(0.98); }
 .map.dragging { cursor: grabbing; }
 .map.pointing { cursor: pointer; }
 

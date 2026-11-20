@@ -31,7 +31,7 @@ export type TraitId =
 
 export type JobId =
   | 'farmer' | 'gatherer' | 'fisher' | 'woodcutter' | 'builder'
-  | 'potter' | 'smith' | 'healer' | 'elder' | 'child' | 'none';
+  | 'potter' | 'smith' | 'healer' | 'herder' | 'elder' | 'child' | 'none';
 
 export type DreamId = 'love' | 'family' | 'sea' | 'treasure' | 'house' | 'craft' | 'remembered' | 'lead';
 export type Origin = 'founder' | 'arrival' | 'born' | 'patron' | 'returned';
@@ -92,7 +92,7 @@ export interface Person {
 export type BuildingKind =
   | 'hearth' | 'stone' | 'tent' | 'hut' | 'house' | 'bighouse' | 'hall'
   | 'granary' | 'kiln' | 'furnace' | 'shrine' | 'well' | 'dock' | 'stall'
-  | 'field' | 'graveyard';
+  | 'field' | 'graveyard' | 'pen';
 
 export interface Building {
   id: number;
@@ -121,7 +121,29 @@ export interface Building {
   /** Businesses have names and owners. */
   name?: string;
   owner?: number;
+  /** Goats and sheep in an animal pen. */
+  herd?: number;
+  /** Day the herd was last culled in a hunger. */
+  culled?: number;
 }
+
+export type ItemKind = 'blade' | 'torc' | 'ring' | 'bowl' | 'comb' | 'cloak' | 'flute' | 'mask' | 'stone' | 'disc';
+export interface ItemEvent { day: number; person?: number; how: 'made' | 'found' | 'brought' | 'inherited' | 'gift' | 'buried' | 'lost' | 'returned' | 'kept' }
+export interface Item {
+  id: number;
+  name: string;
+  kind: ItemKind;
+  made: number;
+  maker?: number;
+  owner?: number;
+  /** Kept by the whole settlement when no heir was left. */
+  village?: boolean;
+  lost?: boolean;
+  buried?: boolean;
+  history: ItemEvent[];
+}
+
+export interface Pet { id: number; kind: 'dog' | 'cat'; name: string; owner?: number; born: number; alive: boolean; died?: number }
 
 export interface Grave { id: number; x: number; y: number; person: number; day: number }
 
@@ -197,7 +219,7 @@ export interface Entry {
 }
 
 export const TERRAIN = { GRASS: 0, SAND: 1, ROCK: 2, WATER: 3, DEEP: 4, MARSH: 5 } as const;
-export const TREE = { NONE: 0, BROADLEAF: 1, PINE: 2, FRUIT: 3, BUSH: 4, BOULDER: 5 } as const;
+export const TREE = { NONE: 0, BROADLEAF: 1, PINE: 2, FRUIT: 3, BUSH: 4, BOULDER: 5, STUMP: 6 } as const;
 
 export interface MapData {
   w: number;
@@ -209,6 +231,10 @@ export interface MapData {
   /** Building id + 1 on each occupied tile, 0 if free. */
   occ: number[];
   fertility: number[];
+  /** Trees: 0..1 while growing (1 = grown). Stumps: the day they were felled. */
+  growth: number[];
+  /** Wood left in each tree. */
+  wood: number[];
 }
 
 export type Stage = 'settlement' | 'village' | 'town' | 'city' | 'metropolis';
@@ -223,6 +249,10 @@ export interface Settings {
   awayMinutes: number;
   /** System notifications for Sparks and the daily goal. */
   notify: boolean;
+  /** Day and night follow the real clock, or the city's own days (one per 15 minutes of work). */
+  dayNight: 'clock' | 'city';
+  /** End a running session automatically at this local time ("18:00"), or never. */
+  stopAt: string | null;
 }
 
 export interface Goals {
@@ -294,7 +324,7 @@ export interface GameState {
   goals: Goals;
   settings: Settings;
   focus: Focus;
-  nextId: { person: number; building: number; entry: number; quest: number; grave: number; party: number; faith: number; petition: number; fortune: number };
+  nextId: { person: number; building: number; entry: number; quest: number; grave: number; party: number; faith: number; petition: number; fortune: number; pet: number; item: number };
   flags: {
     hungerSince?: number;
     coldSince?: number;
@@ -314,6 +344,9 @@ export interface GameState {
     healerUntil?: number;
     /** A Fortune promised a bumper harvest. */
     harvestBoost?: boolean;
+    /** Grown trees in the near woods at the start, and which thinning the Chronicle has noted. */
+    forestStart?: number;
+    forestNotice?: number;
     /** Day a fire last left a family homeless (one Chronicle line per fire). */
     lastFireLoss?: number;
     /** A Fortune made the next Raise a Prophet free. */
@@ -326,4 +359,7 @@ export interface GameState {
   petitions: Petition[];
   plague?: Plague;
   fortunes: FortuneOffer[];
+  pets: Pet[];
+  wild: { deer: number };
+  items: Item[];
 }

@@ -69,6 +69,22 @@ export function SettingsPanel() {
         Notify me about Sparks and my daily goal
       </label>
       <p class="hint">Only while Hearthwork isn't in front of you. Off by default, so nothing interrupts your work.</p>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 400 }}>
+        <input type="checkbox" checked={!!s.settings.stopAt} onChange={(e) => { s.settings.stopAt = (e.target as HTMLInputElement).checked ? '18:00' : null; store.changed(); }} />
+        End my session automatically at
+        <input type="time" value={s.settings.stopAt ?? '18:00'} disabled={!s.settings.stopAt} style={{ width: 'auto' }}
+          onChange={(e) => { const v = (e.target as HTMLInputElement).value; if (v) { s.settings.stopAt = v; store.changed(); } }} />
+      </label>
+      <p class="hint">A running session stops at that time, and the time before it counts. Starting again later that evening is up to you.</p>
+
+      <h4 style={{ margin: '16px 0 4px' }}>Day and night</h4>
+      <div class="traits" role="radiogroup">
+        <button type="button" class={`chip${s.settings.dayNight !== 'city' ? ' on' : ''}`} onClick={() => { s.settings.dayNight = 'clock'; store.changed(); }}>Follow my clock</button>
+        <button type="button" class={`chip${s.settings.dayNight === 'city' ? ' on' : ''}`} onClick={() => { s.settings.dayNight = 'city'; store.changed(); }}>The city's own days</button>
+      </div>
+      <p class="hint">{s.settings.dayNight === 'city'
+        ? 'A day in the city passes every 15 minutes of work, so you see sunrises and sunsets while you work. The sky stays put while you rest.'
+        : "The sky over the city matches the time where you are: work late, and it's night there too."}</p>
 
       <h4 style={{ margin: '16px 0 4px' }}>Darkness: {DARK_LABEL(s.settings.darkness)}</h4>
       <input class="slider" type="range" min={0} max={100} value={s.settings.darkness} onInput={(e) => { s.settings.darkness = Number((e.target as HTMLInputElement).value); store.changed(); }} />

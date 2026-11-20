@@ -37,11 +37,11 @@ export const TRAIT_LABEL = Object.fromEntries(TRAITS.map((t) => [t.id, t.label])
 const TRAIT_WEIGHTS: Partial<Record<TraitId, number>> = { cruel: 0.35, frail: 0.6, cunning: 0.7, lazy: 0.7, timid: 0.8 };
 
 export const JOB_LABEL: Record<JobId, string> = {
-  farmer: 'Farmer', gatherer: 'Gatherer', fisher: 'Fisher', woodcutter: 'Woodcutter', builder: 'Builder',
-  potter: 'Potter', smith: 'Bronzesmith', healer: 'Healer', elder: 'Elder', child: 'Child', none: 'Idle',
+  farmer: 'Farmer', gatherer: 'Gatherer & hunter', fisher: 'Fisher', woodcutter: 'Woodcutter', builder: 'Builder',
+  potter: 'Potter', smith: 'Bronzesmith', healer: 'Healer', herder: 'Herder', elder: 'Elder', child: 'Child', none: 'Idle',
 };
 
-export const TRADES: JobId[] = ['farmer', 'gatherer', 'fisher', 'woodcutter', 'builder', 'potter', 'smith', 'healer'];
+export const TRADES: JobId[] = ['farmer', 'gatherer', 'fisher', 'woodcutter', 'builder', 'potter', 'smith', 'healer', 'herder'];
 
 export const DREAM_LABEL: Record<DreamId, string> = {
   love: 'to find love',
@@ -73,7 +73,7 @@ export function rollOrientation(r: RngState): Orientation {
 export function rollSkill(r: RngState): JobId {
   return weighted(r, [
     ['farmer', 24], ['gatherer', 14], ['fisher', 12], ['woodcutter', 12], ['builder', 14],
-    ['potter', 9], ['smith', 7], ['healer', 8],
+    ['potter', 9], ['smith', 7], ['healer', 8], ['herder', 6],
   ] as const);
 }
 

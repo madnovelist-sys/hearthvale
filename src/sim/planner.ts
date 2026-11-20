@@ -2,6 +2,7 @@
 // and moves families in when it's done. Footsteps wear paths into the grass.
 import { log } from './chronicle';
 import { openBusiness } from './society';
+import { startHerd } from './animals';
 import { isBuildable } from './mapgen';
 import { buildCostGrid, findPath, reachable } from './path';
 import { rand, shuffle, int } from './rng';
@@ -11,23 +12,23 @@ import { ageOf, centerOf, isDwelling, population, present, residents, tileIndex 
 export const FOOTPRINT: Record<BuildingKind, [number, number]> = {
   hearth: [1, 1], stone: [1, 1], tent: [1, 1], hut: [1, 1], house: [1, 1], bighouse: [2, 2], hall: [3, 3],
   granary: [2, 2], kiln: [2, 2], furnace: [1, 1], shrine: [2, 2], well: [1, 1], dock: [1, 1], stall: [1, 1],
-  field: [2, 2], graveyard: [3, 3],
+  field: [2, 2], graveyard: [3, 3], pen: [2, 2],
 };
 
 export const BUILD_WORK: Record<BuildingKind, number> = {
   hearth: 0, stone: 0, tent: 0, hut: 24, house: 50, bighouse: 80, hall: 160, granary: 40, kiln: 30,
-  furnace: 40, shrine: 40, well: 20, dock: 25, stall: 12, field: 6, graveyard: 0,
+  furnace: 40, shrine: 40, well: 20, dock: 25, stall: 12, field: 6, graveyard: 0, pen: 14,
 };
 
 /** Wood used per unit of building work. Fields and graveyards need none. */
-const WOOD_PER_WORK: Partial<Record<BuildingKind, number>> = { field: 0, graveyard: 0, well: 0.4, shrine: 0.3, kiln: 0.8 };
+const WOOD_PER_WORK: Partial<Record<BuildingKind, number>> = { field: 0, graveyard: 0, well: 0.4, shrine: 0.3, kiln: 0.8, pen: 0.8 };
 const DEFAULT_WOOD_PER_WORK = 1.5;
 
 export const BUILDING_LABEL: Record<BuildingKind, string> = {
   hearth: 'The Hearth', stone: 'The Old Stone', tent: 'Hide tent', hut: 'Round hut', house: 'Mudbrick home',
   bighouse: 'Family house', hall: 'Gathering hall', granary: 'Granary', kiln: "Potter's kiln",
   furnace: 'Bronze furnace', shrine: 'Stone circle', well: 'Well', dock: 'Fishing dock', stall: 'Market stall',
-  field: 'Barley field', graveyard: 'Burial ground',
+  field: 'Barley field', graveyard: 'Burial ground', pen: 'Animal pen',
 };
 
 const regionCache = new WeakMap<object, Uint8Array>();
@@ -241,6 +242,10 @@ function completeBuilding(s: GameState, b: Building) {
     }
   if (b.forPeople?.length) moveIn(s, b, b.forPeople);
   if (b.kind === 'kiln' || b.kind === 'furnace' || b.kind === 'stall') openBusiness(s, b);
+  if (b.kind === 'pen') {
+    startHerd(s, b);
+    log(s, 'build', `An animal pen was built at the edge of ${s.name}, and ${b.herd} goats and sheep were traded for pots and bronze.`, [], 3);
+  }
   b.forPeople = undefined;
 
   const firsts = s.buildings.filter((x) => x.kind === b.kind && x.built && !x.removed && x.id !== b.id).length === 0;
@@ -385,6 +390,7 @@ function civic(s: GameState) {
   const jobs = (j: Person['job']) => people.some((p) => p.job === j);
   let want: BuildingKind | null = null;
   if (pop >= 10 && !has('well')) want = 'well';
+  else if (pop >= 12 && !has('pen')) want = 'pen';
   else if (pop >= 16 && !has('granary')) want = 'granary';
   else if (jobs('fisher') && !has('dock')) want = 'dock';
   else if (jobs('potter') && !has('kiln')) want = 'kiln';
@@ -394,6 +400,7 @@ function civic(s: GameState) {
   else if (s.stage !== 'settlement' && pop >= 60 && !has('hall')) want = 'hall';
   else if (pop >= 45 && countBuildings(s, 'granary') < 2) want = 'granary';
   else if (pop >= 40 && countBuildings(s, 'well') < 2) want = 'well';
+  else if (pop >= 60 && countBuildings(s, 'pen') < 2) want = 'pen';
   if (want) queueBuilding(s, want);
 
   // Every farmer works a field of their own.

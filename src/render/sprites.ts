@@ -37,11 +37,12 @@ export const ART_KEY: Partial<Record<BuildingKind, string>> = {
   dock: 'bld_dock_bronze_1x1',
   stall: 'bld_stall_bronze_1x1',
   graveyard: 'bld_burial_bronze_3x3',
+  pen: 'bld_pen_bronze_2x2',
   hearth: 'lnd_hearth_any_1x1',
   stone: 'lnd_old-stone_any_1x1',
 };
 
-export const TREE_KEY = ['', 'nat_broadleaf_any_1x1', 'nat_pine_any_1x1', 'nat_fruit_any_1x1', 'nat_bush_any_1x1', 'nat_rock_any_1x1'];
+export const TREE_KEY = ['', 'nat_broadleaf_any_1x1', 'nat_pine_any_1x1', 'nat_fruit_any_1x1', 'nat_bush_any_1x1', 'nat_rock_any_1x1', 'nat_stump_any_1x1'];
 
 // ---------------------------------------------------------------------------
 // Real art
@@ -481,6 +482,24 @@ function placeholderBuilding(kind: BuildingKind, variant: number): Sprite {
       }
       return c.sprite();
     }
+    case 'pen': {
+      const c = new Canvas(2, 2, 40);
+      const g = c.g;
+      c.poly([c.pt(0, 2), c.pt(2, 2), c.pt(2, 0), c.pt(0, 0)], 'rgba(166,124,82,0.45)');
+      g.fillStyle = 'rgba(201,165,92,0.8)';
+      g.beginPath(); g.ellipse(c.pt(0.5, 0.6).x, c.pt(0.5, 0.6).y, 12, 6, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = shade(C.timber, 0.05); g.lineWidth = 2.5;
+      const ring = [c.pt(0, 2), c.pt(2, 2), c.pt(2, 0), c.pt(0, 0)];
+      for (let i = 0; i <= 8; i++) for (const [a, b] of [[ring[0], ring[1]], [ring[1], ring[2]], [ring[3], ring[0]], [ring[2], ring[3]]]) {
+        const p = { x: a.x + (b.x - a.x) * (i / 8), y: a.y + (b.y - a.y) * (i / 8) };
+        g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, p.y - 14); g.stroke();
+      }
+      g.lineWidth = 2;
+      for (const [a, b] of [[ring[0], ring[1]], [ring[1], ring[2]], [ring[3], ring[0]], [ring[2], ring[3]]]) {
+        for (const h of [6, 11]) { g.beginPath(); g.moveTo(a.x, a.y - h); g.lineTo(b.x, b.y - h); g.stroke(); }
+      }
+      return c.sprite();
+    }
     case 'graveyard': {
       const c = new Canvas(3, 3, 40);
       const g = c.g;
@@ -606,6 +625,14 @@ function placeholderTree(type: number, season: number, v: number): Sprite {
   const scale = [1, 0.88, 1.1][v];
   g.fillStyle = 'rgba(62,58,79,0.22)';
   g.beginPath(); g.ellipse(p.x + 6, p.y + 2, 30 * scale, 13 * scale, 0, 0, Math.PI * 2); g.fill();
+  if (type === 6) { // stump
+    g.fillStyle = shade(C.timber, -0.1);
+    g.beginPath(); g.ellipse(p.x, p.y - 2, 11 * scale, 5.5 * scale, 0, 0, Math.PI); g.lineTo(p.x - 11 * scale, p.y - 12 * scale); g.ellipse(p.x, p.y - 12 * scale, 11 * scale, 5.5 * scale, 0, Math.PI, 0, true); g.closePath(); g.fill();
+    g.fillStyle = season === 3 ? C.snow : '#D8B98A';
+    g.beginPath(); g.ellipse(p.x, p.y - 12 * scale, 10 * scale, 5 * scale, 0, 0, Math.PI * 2); g.fill();
+    if (season !== 3) { g.strokeStyle = 'rgba(110,79,51,0.6)'; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, p.y - 12 * scale, 5 * scale, 2.4 * scale, 0, 0, Math.PI * 2); g.stroke(); }
+    return c.sprite();
+  }
   if (type === 5) { // boulder
     const r = 26 * scale;
     const grad = g.createLinearGradient(p.x - r, 0, p.x + r, 0);

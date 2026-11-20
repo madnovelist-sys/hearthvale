@@ -10,7 +10,7 @@ import { resolveText } from '../src/sim/text';
 const hours = Number(process.argv[2] ?? 40);
 const seed = Number(process.argv[3] ?? 12345);
 const darkness = Number(process.argv[4] ?? 50);
-const s = foundSettlement({ seed, name: 'Testbrook', settings: { darkness, weirdness: 1, awayMinutes: 0, notify: false } });
+const s = foundSettlement({ seed, name: 'Testbrook', settings: { darkness, weirdness: 1, awayMinutes: 0, notify: false, dayNight: 'clock', stopAt: null } });
 const daysPerSpark = (20 / 60) * DAYS_PER_YEAR;
 let nextSpark = daysPerSpark;
 const t0 = Date.now();

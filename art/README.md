@@ -35,7 +35,8 @@ Any number of variants (`v01`, `v02`, …) of anything are used at random. State
 | Burial ground (3×3) | `bld_burial_bronze_3x3` |
 | The hearth | `lnd_hearth_any_1x1` |
 | The Old Stone | `lnd_old-stone_any_1x1` |
-| Trees and rocks | `nat_broadleaf_any_1x1`, `nat_pine_any_1x1`, `nat_fruit_any_1x1`, `nat_bush_any_1x1`, `nat_rock_any_1x1` |
+| Trees, rocks and stumps | `nat_broadleaf_any_1x1`, `nat_pine_any_1x1`, `nat_fruit_any_1x1`, `nat_bush_any_1x1`, `nat_rock_any_1x1`, `nat_stump_any_1x1` |
+| Animal pen (2×2) | `bld_pen_bronze_2x2` |
 
 ## Night lights and smoke
 

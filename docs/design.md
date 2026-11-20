@@ -69,6 +69,14 @@ Planned: Matchmake, Inspire, Call a Festival, Commission, Avert Calamity, Found 
 - Omens scaled by Weirdness. Everyday moments between the big events.
 - Years named after their most memorable event.
 
+### The living world
+
+- **Day and night** follow your own clock by default (night when it's night where you are), or the city's own days (one every 15 minutes of work). People go indoors after dark and windows glow. Pausing no longer means night: when you rest, **time stands still**: people freeze mid-step, smoke hangs in the air, and the colors soften.
+- **The woods run out**: each tree holds about 60 units of wood and leaves a stump when cut; woodcutters fell the nearest grown trees and walk farther as the woods thin; saplings spread from grown trees and take five years to grow. The Chronicle notices when the near woods thin and when they're gone (and when they come back).
+- **Animals**: animal pens with herds of goats and sheep tended by herders (milk, cheese and wool), growing each spring, culled in hunger (never below a breeding few), raided by wolves in grim winters. Dogs and cats join families, follow their people about, grow old and die; a dog may keep vigil on its owner's grave, or pull a child from the river. Deer live in the woods in proportion to the trees, thinned by hunting. Ducks on the river, flocks of birds overhead.
+- **Heirlooms**: named things with histories: swords and torcs brought home from quests, relics, masterworks made by long-practised potters and smiths, wedding keepsakes, and the keepsakes your own settlers bring. When their keepers die they pass to the eldest child (or spouse, grandchild, sibling), are sometimes buried with them, are lost with those who die far away, and come back with those who return. With no heir left, they hang in the gathering place.
+- **Stopping time**: an optional time of day (e.g. 6:00 pm) at which a running session ends by itself.
+
 ### Village life (Phase 2)
 
 - **Leadership**: in a settlement, people bring their quarrels to whoever they respect (the Eldest); in a village, ambitious people claim the chief's seat, sometimes contested, and a chief who grows unpopular can be challenged and unseated.

@@ -2,6 +2,7 @@
 // marsh. Seeded, so each founding site can be re-rolled or reproduced.
 import { makeRng, rand, int, range, type RngState } from './rng';
 import { TERRAIN, TREE, type MapData } from './types';
+import { ensureForest } from './forest';
 
 export const MAP_SIZE = 64;
 
@@ -131,7 +132,9 @@ export function generateMap(seed: number, size = MAP_SIZE): GeneratedMap {
     }
   }
 
-  return { map: { w, h, terrain, trees, wear, occ, fertility }, hearth: { x: best.x, y: best.y } };
+  const map: MapData = { w, h, terrain, trees, wear, occ, fertility, growth: [], wood: [] };
+  ensureForest(map);
+  return { map, hearth: { x: best.x, y: best.y } };
 }
 
 export function isWater(t: number): boolean {

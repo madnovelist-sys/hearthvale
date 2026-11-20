@@ -5,6 +5,7 @@ import type { GameState, SessionRecord } from '../sim/types';
 import { creditTime, GAP_LIMIT_MS, localDate, logWords, startSession, stopSession, tick, type ClockEvents } from './clock';
 import { loadGame, saveGame } from './save';
 import { notify } from './desktop';
+import { stopTimeToday } from './sky';
 
 export type Panel = 'chronicle' | 'people' | 'society' | 'acts' | 'arrivals' | 'settings' | 'art';
 export type Selection = { kind: 'person'; id: number } | { kind: 'building'; id: number } | null;
@@ -24,6 +25,8 @@ export interface UiState {
   act: 'settler' | 'quest' | 'name' | 'law' | 'prophet' | null;
   /** Person whose family tree is open. */
   tree?: number;
+  /** Heirloom whose story is open. */
+  item?: number;
   actTarget?: number;
   /** The small "log words" dialog (word tracking only). */
   logWords?: boolean;
@@ -135,7 +138,22 @@ class Store {
     const s = this.state;
     if (!s?.focus.running) return;
     const before = s.day;
-    tick(s, Math.min(Date.now(), this.activeUntil ?? Infinity), this.events);
+    const now = Date.now();
+    // Your stopping time: the session ends there, counted up to that moment.
+    const stopAt = stopTimeToday(s, now);
+    if (stopAt !== null && s.focus.running.startedAt < stopAt && now >= stopAt) {
+      tick(s, Math.min(stopAt, this.activeUntil ?? Infinity), this.events);
+      const rec = stopSession(s, stopAt, this.events);
+      this.activeUntil = null;
+      this.ui.ended = rec;
+      const label = new Date(stopAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      this.toast(`It's ${label}: your session ended for the day.`);
+      void notify('Hearthwork', `It's ${label}. Your session has ended for the day.`);
+      this.save();
+      this.notify(true);
+      return;
+    }
+    tick(s, Math.min(now, this.activeUntil ?? Infinity), this.events);
     if (s.day !== before) this.notify();
   }
 

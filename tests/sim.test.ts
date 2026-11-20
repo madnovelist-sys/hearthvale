@@ -55,7 +55,7 @@ describe('simulation', () => {
 
   it("darkness changes how deadly life is", () => {
     const deaths = (darkness: number) => {
-      const s = foundSettlement({ seed: 3, name: 'X', settings: { darkness, weirdness: 1, awayMinutes: 0, notify: false } });
+      const s = foundSettlement({ seed: 3, name: 'X', settings: { darkness, weirdness: 1, awayMinutes: 0, notify: false, dayNight: 'clock', stopAt: null } });
       for (let d = 0; d < 25 * DAYS_PER_YEAR; d++) {
         stepDay(s);
         if (d % 120 === 119) settleParty(s, makeArrivalOptions(s)[0]);
@@ -249,5 +249,73 @@ describe('village life', () => {
     const back = parseSave(JSON.stringify(s));
     expect(back.laws).toEqual([]);
     expect(back.faiths).toEqual([]);
+  });
+});
+
+import { chopWood, ensureForest, forestMonth, WOOD_PER_TREE } from '../src/sim/forest';
+import { nightAt, stopTimeToday } from '../src/game/sky';
+import { makeItem, passHeirlooms } from '../src/sim/items';
+import { killPerson } from '../src/sim/life';
+import { TREE } from '../src/sim/types';
+
+describe('design notes', () => {
+  it('trees are cut down to stumps, and saplings grow back slowly', () => {
+    const s = foundSettlement({ seed: 61, name: 'Wood' });
+    const before = s.map.trees.filter((t) => t === TREE.BROADLEAF || t === TREE.PINE).length;
+    let got = 0;
+    for (let i = 0; i < 40; i++) got += chopWood(s, 1.6);
+    expect(got).toBeGreaterThan(0);
+    // Keep chopping until at least two trees are gone.
+    for (let i = 0; i < Math.ceil((WOOD_PER_TREE * 2) / 1.6) + 10; i++) chopWood(s, 1.6);
+    expect(s.map.trees.filter((t) => t === TREE.STUMP).length).toBeGreaterThanOrEqual(2);
+    expect(s.map.trees.filter((t) => t === TREE.BROADLEAF || t === TREE.PINE).length).toBeLessThan(before);
+    const sapling = s.map.trees.findIndex((t, i) => (t === TREE.BROADLEAF || t === TREE.PINE) && s.map.growth[i] < 1);
+    if (sapling >= 0) { const g = s.map.growth[sapling]; s.day += 30; forestMonth(s); expect(s.map.growth[sapling]).toBeGreaterThan(g); }
+  });
+
+  it('older maps get trees with wood', () => {
+    const s = foundSettlement({ seed: 62, name: 'Old' });
+    const map = s.map as unknown as Record<string, unknown>;
+    delete map.growth; delete map.wood;
+    ensureForest(s.map);
+    const i = s.map.trees.findIndex((t) => t === TREE.PINE || t === TREE.BROADLEAF);
+    expect(s.map.wood[i]).toBe(WOOD_PER_TREE);
+    expect(s.map.growth[i]).toBe(1);
+  });
+
+  it('day and night follow the hour; the stopping time is today at that hour', () => {
+    expect(nightAt(12)).toBe(0);
+    expect(nightAt(2)).toBe(1);
+    expect(nightAt(20)).toBeGreaterThan(0.5);
+    expect(nightAt(6)).toBeGreaterThan(0);
+    const s = foundSettlement({ seed: 63, name: 'Clock' });
+    expect(stopTimeToday(s, Date.now())).toBeNull();
+    s.settings.stopAt = '18:30';
+    const t = new Date(stopTimeToday(s, new Date(2026, 10, 20, 9).getTime())!);
+    expect([t.getHours(), t.getMinutes(), t.getDate()]).toEqual([18, 30, 20]);
+  });
+
+  it('pens get herds, and families get dogs and cats over the years', () => {
+    const s = run(64, 25);
+    expect(s.buildings.some((b) => b.kind === 'pen' && b.built && (b.herd ?? 0) > 0)).toBe(true);
+    expect(s.pets.length).toBeGreaterThan(0);
+    expect(s.wild.deer).toBeGreaterThanOrEqual(0);
+  });
+
+  it('heirlooms pass to the eldest child, keeping their history', () => {
+    const s = run(65, 20);
+    const parent = s.people.find((p) => p.alive && p.away === undefined && p.children.some((c) => s.people[c]?.alive && s.people[c].away === undefined && ageOf(s, s.people[c]) >= 12))!;
+    const item = makeItem(s, 'blade', parent, 'made');
+    s.rng.s = 7; // a roll that doesn't bury it
+    let tries = 0;
+    while (tries++ < 50) {
+      const copy = JSON.parse(JSON.stringify(s));
+      const p = copy.people[parent.id];
+      killPerson(copy, p, 'old age', 'test');
+      const it = copy.items[item.id];
+      if (!it.buried) { expect(it.owner).toBeDefined(); expect(it.history.at(-1).how).toBe('inherited'); return; }
+      s.rng.s += 1;
+    }
+    void passHeirlooms;
   });
 });

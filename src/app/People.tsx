@@ -9,6 +9,8 @@ import type { GameState, Person } from '../sim/types';
 import { ageOf, fullName, isBlessed, yearOf } from '../sim/world';
 import { CLOTHES } from '../render/palette';
 import { leaderTitle } from '../sim/society';
+import { ITEM_KIND_LABEL, itemsOf } from '../sim/items';
+import { petsOf } from '../sim/animals';
 
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 import { PersonLink, RichText, ageText, when } from './format';
@@ -117,6 +119,15 @@ export function PersonCard({ id }: { id: number }) {
           {kids.length > 0 && <div>Children: {kids.map((x, i) => <span key={x.id}>{i ? ', ' : ''}<PersonLink p={x} />{x.alive ? '' : ' †'}</span>)}</div>}
         </section>
       )}
+      {(itemsOf(s, p.id).length > 0 || petsOf(s, p.id).length > 0) && (
+        <section>
+          <h4>Keeps</h4>
+          {itemsOf(s, p.id).map((it) => (
+            <div key={it.id}><button class="pname" onClick={() => store.setUi({ item: it.id })}>{it.name[0].toUpperCase() + it.name.slice(1)}</button> <span class="sub">({ITEM_KIND_LABEL[it.kind]})</span></div>
+          ))}
+          {petsOf(s, p.id).map((pet) => <div key={`pet${pet.id}`}>{pet.name}, {pet.kind === 'dog' ? 'a dog' : 'a cat'}</div>)}
+        </section>
+      )}
       {home && p.alive && (
         <section>
           <h4>Home</h4>
@@ -172,6 +183,7 @@ export function BuildingCard({ id }: { id: number }) {
         </section>
       )}
       {worker && <section><h4>Worked by</h4><PersonLink p={worker} /></section>}
+      {b.kind === 'pen' && <section><h4>Animals</h4>{b.herd ? `${b.herd} goats and sheep.` : 'Empty, for now.'}</section>}
       {graves.length > 0 && (
         <section>
           <h4>Buried here</h4>

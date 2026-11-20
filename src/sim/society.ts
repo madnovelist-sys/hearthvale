@@ -209,7 +209,7 @@ export function followers(s: GameState, faithId: number): number {
 export function foundFaith(s: GameState, founder: Person, tenets: TenetId[], name?: string, opts: { patron?: boolean; parent?: number } = {}): Faith {
   const faith: Faith = {
     id: s.nextId.faith++,
-    name: name?.trim() || capitalize(pick(s.rng, FAITH_NAMES[tenets[0]])),
+    name: name?.trim() || pick(s.rng, FAITH_NAMES[tenets[0]]), // 'the Way of …': capitalized where shown
     founder: founder.id,
     founded: s.day,
     tenets,
