@@ -17,6 +17,8 @@
     "art": "vite-node scripts/build-art.ts --"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.5",
+    "@tauri-apps/plugin-notification": "^2.8.1",
     "preact": "^10.29.8"
   },
   "devDependencies": {

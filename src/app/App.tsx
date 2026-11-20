@@ -58,8 +58,7 @@ export function App() {
       {panel === 'art' && <ArtStudio />}
       {ui.selection?.kind === 'person' && <PersonCard id={ui.selection.id} />}
       {ui.selection?.kind === 'building' && <BuildingCard id={ui.selection.id} />}
-      {ui.ended && <SessionEnd />}
-      {ui.gapMs && !ui.ended && <GapDialog />}
+      {ui.gapMs ? <GapDialog /> : ui.ended ? <SessionEnd /> : null}
       {ui.logWords && !ui.ended && <WordsDialog />}
       <div class="toasts" aria-live="polite">
         {ui.toasts.map((t) => <div class={`toast paper ${t.tone ?? ''}`} key={t.id}>{t.text}</div>)}

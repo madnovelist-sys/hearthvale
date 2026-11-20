@@ -4,6 +4,7 @@ import { loadStoredArt } from './app/artStore';
 import { store } from './game/store';
 import { loadManifest } from './render/sprites';
 import { view } from './app/view';
+import { initDesktop } from './game/desktop';
 import './app/styles.css';
 
 // A handle for automated tests and for curious people with a console open.
@@ -12,7 +13,7 @@ import './app/styles.css';
 render(<App />, document.getElementById('app')!);
 
 void loadManifest().then(loadStoredArt);
-void store.load();
+void store.load().then(initDesktop);
 
 // The clock keeps counting even when the window is hidden and animation
 // frames stop; the city catches up from timestamps.

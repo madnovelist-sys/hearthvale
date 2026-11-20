@@ -195,6 +195,10 @@ export interface Settings {
   darkness: number;
   /** 0 = historical ... 4 = fantastical. */
   weirdness: number;
+  /** Pause a session after this many minutes away from the computer (0 = never). Mac app only. */
+  awayMinutes: number;
+  /** System notifications for Sparks and the daily goal. */
+  notify: boolean;
 }
 
 export interface Goals {

@@ -23,6 +23,12 @@ The art direction lives in its own document (the Art Design Document). This file
 | Weirdness | A slider, 0–4: Historical, Folklore, Uncanny, Mythic, Fantastical. |
 | Darkness | A slider, 0–100: Gentle, Balanced, Grim. Changes avoidable deaths and how the Chronicle tells hard things. No gore at any setting. |
 
+## A companion while you work (Mac app)
+
+- **Menu-bar clock**: the session timer shows in the Mac menu bar, with Start/Stop there. Closing the window keeps Hearthwork running in the menu bar; the Dock icon or the menu brings it back. Stopping from the menu bar brings the window up for the end-of-session summary.
+- **Pause when away**: if there's no keyboard or mouse input for a while (default 15 minutes; Settings), the session pauses at the moment you left, and on return you're asked whether to count the time away (you might have been reading or writing by hand). Time is only counted up to shortly after the last input, so nothing has to be taken back.
+- **Notifications**: optional (off by default) notifications for Sparks and the daily goal, only when the window isn't in front. A paused-while-away notice is always sent if notifications are allowed.
+
 ## Goals and rewards
 
 | Tier | Default | Reward |

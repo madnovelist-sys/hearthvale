@@ -1,7 +1,7 @@
 // Founding a settlement: pick a site, a name, your goals and the sliders.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Renderer } from '../render/renderer';
-import { foundSettlement, DEFAULT_GOALS } from '../sim/sim';
+import { foundSettlement, DEFAULT_GOALS, DEFAULT_SETTINGS } from '../sim/sim';
 import { settlementName } from '../sim/names';
 import { makeRng } from '../sim/rng';
 import { store } from '../game/store';
@@ -36,7 +36,7 @@ export function Founding() {
 
   const begin = (e: Event) => {
     e.preventDefault();
-    const s = foundSettlement({ seed, name: name.trim() || 'Hearthwork', goals, settings: { darkness, weirdness } });
+    const s = foundSettlement({ seed, name: name.trim() || 'Hearthwork', goals, settings: { ...DEFAULT_SETTINGS, darkness, weirdness } });
     store.setState(s);
   };
 

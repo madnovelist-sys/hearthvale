@@ -95,6 +95,8 @@ function migrate(s: GameState): GameState {
   s.pending ??= [];
   s.arrivals ??= [];
   s.goals.track ??= 'time';
+  s.settings.awayMinutes ??= 15;
+  s.settings.notify ??= false;
   return s;
 }
 

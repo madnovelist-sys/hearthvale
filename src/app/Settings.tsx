@@ -4,6 +4,7 @@ import { exportGame, importGame, listBackups, loadBackup, deleteSave } from '../
 import { store } from '../game/store';
 import { exportChronicle } from './Chronicle';
 import { GoalFields } from './GoalFields';
+import { askNotificationPermission, canDetectAway, isDesktop } from '../game/desktop';
 
 const DARK_LABEL = (d: number) => (d < 34 ? 'Gentle' : d < 67 ? 'Balanced' : 'Grim');
 const WEIRD_LABEL = ['Historical', 'Folklore', 'Uncanny', 'Mythic', 'Fantastical'];
@@ -45,6 +46,29 @@ export function SettingsPanel() {
     <div class="form">
       <h4 style={{ margin: '0 0 4px' }}>Goals</h4>
       <GoalFields goals={g} onChange={(next) => { Object.assign(g, next); store.changed(); }} />
+
+      <h4 style={{ margin: '16px 0 4px' }}>While you work</h4>
+      <label>Pause when I've been away from my computer for</label>
+      <select disabled={!canDetectAway()} value={canDetectAway() ? s.settings.awayMinutes : 0}
+        onChange={(e) => { s.settings.awayMinutes = Number((e.target as HTMLSelectElement).value); store.changed(); }}>
+        <option value={0}>Never</option>
+        {[10, 15, 20, 30, 45, 60].map((m) => <option key={m} value={m}>{m} minutes</option>)}
+      </select>
+      <p class="hint">
+        {canDetectAway()
+          ? "If there's no keyboard or mouse activity for that long, the session pauses at the moment you left, and you're asked whether to count the time away."
+          : isDesktop ? 'Not available on this computer yet.' : 'Available in the Mac app.'}
+      </p>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 400 }}>
+        <input type="checkbox" checked={s.settings.notify} onChange={async (e) => {
+          const on = (e.target as HTMLInputElement).checked;
+          s.settings.notify = on && (await askNotificationPermission());
+          if (on && !s.settings.notify) store.toast('Notifications are turned off for Hearthwork in your system settings.');
+          store.changed();
+        }} />
+        Notify me about Sparks and my daily goal
+      </label>
+      <p class="hint">Only while Hearthwork isn't in front of you. Off by default, so nothing interrupts your work.</p>
 
       <h4 style={{ margin: '16px 0 4px' }}>Darkness: {DARK_LABEL(s.settings.darkness)}</h4>
       <input class="slider" type="range" min={0} max={100} value={s.settings.darkness} onInput={(e) => { s.settings.darkness = Number((e.target as HTMLInputElement).value); store.changed(); }} />

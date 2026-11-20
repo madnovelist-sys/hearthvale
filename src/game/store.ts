@@ -4,6 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { GameState, SessionRecord } from '../sim/types';
 import { creditTime, GAP_LIMIT_MS, localDate, logWords, startSession, stopSession, tick, type ClockEvents } from './clock';
 import { loadGame, saveGame } from './save';
+import { notify } from './desktop';
 
 export type Panel = 'chronicle' | 'people' | 'acts' | 'arrivals' | 'settings' | 'art';
 export type Selection = { kind: 'person'; id: number } | { kind: 'building'; id: number } | null;
@@ -16,8 +17,9 @@ export interface UiState {
   toasts: Toast[];
   /** The session that just ended, waiting for its word count. */
   ended: SessionRecord | null;
-  /** Time that passed while the app was closed or asleep mid-session. */
+  /** Time that passed while the app was closed or asleep mid-session, or while you were away. */
   gapMs: number | null;
+  gapReason?: 'closed' | 'away';
   /** Open act form. */
   act: 'settler' | 'quest' | 'name' | null;
   actTarget?: number;
@@ -38,10 +40,45 @@ class Store {
   private toastId = 0;
 
   readonly events: ClockEvents = {
-    spark: (kind) => this.toast(kind === 'time' ? 'A Spark! Travelers are on the road.' : 'Your words became a Spark. Travelers are on the road.', 'gold'),
-    dailyGoal: () => this.toast("Daily goal reached: +5 Favor. The fire burns bright tonight.", 'gold'),
-    gap: (ms) => { this.ui.gapMs = ms; this.notify(true); },
+    spark: (kind) => {
+      this.toast(kind === 'time' ? 'A Spark! Travelers are on the road.' : 'Your words became a Spark. Travelers are on the road.', 'gold');
+      this.ping('A Spark', `Travelers are on the road to ${this.state?.name ?? 'your settlement'}.`);
+    },
+    dailyGoal: () => {
+      this.toast('Daily goal reached: +5 Favor. The fire burns bright tonight.', 'gold');
+      this.ping('Daily goal reached', '+5 Favor. The fire burns bright tonight.');
+    },
+    gap: (ms) => { this.ui.gapMs = ms; this.ui.gapReason = 'closed'; this.notify(true); },
   };
+
+  /**
+   * When the Mac app can tell you've stepped away, time is only counted up to
+   * shortly after your last keyboard or mouse input (null: no limit).
+   */
+  activeUntil: number | null = null;
+
+  /** A quiet system notification, only if turned on and you're not looking at the game. */
+  private ping(title: string, body: string) {
+    if (!this.state?.settings.notify) return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    void notify(title, body);
+  }
+
+  /** You've been away long enough: pause at the moment you left, and ask about the time since. */
+  pauseForAway(lastActive: number, now: number) {
+    const s = this.state;
+    if (!s?.focus.running) return;
+    this.activeUntil = null;
+    // Time already counted (up to a little after you left) isn't asked about twice.
+    const counted = Math.max(lastActive, s.focus.running.lastTickAt);
+    const rec = stopSession(s, lastActive, this.events);
+    this.ui.ended = rec;
+    this.ui.gapMs = Math.max(0, now - counted);
+    this.ui.gapReason = 'away';
+    void notify('Hearthwork paused', `You've been away for ${Math.round((now - lastActive) / 60_000)} minutes, so your session paused when you left.`);
+    this.save();
+    this.notify(true);
+  }
 
   subscribe(fn: Listener) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
@@ -82,6 +119,7 @@ class Store {
     if (gap < 5 * 60_000) return; // a quick restart: keep going
     stopSession(s, r.lastTickAt, this.events);
     this.ui.gapMs = Math.min(gap, 12 * 3_600_000);
+    this.ui.gapReason = 'closed';
   }
 
   setState(s: GameState | null) {
@@ -95,7 +133,7 @@ class Store {
     const s = this.state;
     if (!s?.focus.running) return;
     const before = s.day;
-    tick(s, Date.now(), this.events);
+    tick(s, Math.min(Date.now(), this.activeUntil ?? Infinity), this.events);
     if (s.day !== before) this.notify();
   }
 
@@ -103,6 +141,7 @@ class Store {
     const s = this.state;
     if (!s || s.focus.running) return;
     startSession(s, Date.now());
+    this.activeUntil = null;
     this.ui.ended = null;
     this.ui.panel = null;
     this.save();

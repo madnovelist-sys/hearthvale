@@ -66,13 +66,15 @@ export function SessionEnd() {
 
 export function GapDialog() {
   const gap = store.ui.gapMs!;
+  const away = store.ui.gapReason === 'away';
   return (
     <div class="scrim">
       <div class="dialog paper" role="dialog" aria-labelledby="gap-title">
-        <h2 id="gap-title">Were you still working?</h2>
+        <h2 id="gap-title">{away ? 'Welcome back' : 'Were you still working?'}</h2>
         <p class="lead">
-          Your session was still running when Hearthwork closed or your computer slept, {minutes(gap)} ago.
-          Count that time toward your work?
+          {away
+            ? <>You were away from your computer for {minutes(gap)}, so your session paused at the moment you left. Were you still working (reading, thinking, writing by hand)? Count that time too?</>
+            : <>Your session was still running when Hearthwork closed or your computer slept, {minutes(gap)} ago. Count that time toward your work?</>}
         </p>
         <div class="row-btns">
           <button class="btn" onClick={() => store.resolveGap(false)}>Don't count it</button>

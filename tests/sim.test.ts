@@ -55,7 +55,7 @@ describe('simulation', () => {
 
   it("darkness changes how deadly life is", () => {
     const deaths = (darkness: number) => {
-      const s = foundSettlement({ seed: 3, name: 'X', settings: { darkness, weirdness: 1 } });
+      const s = foundSettlement({ seed: 3, name: 'X', settings: { darkness, weirdness: 1, awayMinutes: 0, notify: false } });
       for (let d = 0; d < 25 * DAYS_PER_YEAR; d++) {
         stepDay(s);
         if (d % 120 === 119) settleParty(s, makeArrivalOptions(s)[0]);
