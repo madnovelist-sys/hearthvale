@@ -13,9 +13,10 @@
 // in the image's own pixels.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'art');
 const OUT = path.join(ROOT, 'public', 'art');
 const TARGET_TILE_PX = 256; // game sprites: 256 px per tile at most

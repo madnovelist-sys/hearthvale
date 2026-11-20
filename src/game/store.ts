@@ -21,6 +21,8 @@ export interface UiState {
   /** Open act form. */
   act: 'settler' | 'quest' | 'name' | null;
   actTarget?: number;
+  /** The small "log words" dialog (word tracking only). */
+  logWords?: boolean;
 }
 
 type Listener = () => void;

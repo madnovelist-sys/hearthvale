@@ -198,6 +198,8 @@ export interface Settings {
 }
 
 export interface Goals {
+  /** How progress is measured: time worked, or words written. */
+  track: 'time' | 'words';
   dailyMinutes: number;
   dailyWords: number;
   sparkMinutes: number;

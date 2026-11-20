@@ -3,7 +3,7 @@ import { store, useStore, type Panel } from '../game/store';
 import { ActsPanel, ArrivalsPanel } from './Acts';
 import { ArtStudio } from './ArtStudio';
 import { ChroniclePanel } from './Chronicle';
-import { GapDialog, SessionEnd } from './Dialogs';
+import { GapDialog, SessionEnd, WordsDialog } from './Dialogs';
 import { Founding } from './Founding';
 import { Hud } from './Hud';
 import { MapView, ZoomButtons } from './MapView';
@@ -60,6 +60,7 @@ export function App() {
       {ui.selection?.kind === 'building' && <BuildingCard id={ui.selection.id} />}
       {ui.ended && <SessionEnd />}
       {ui.gapMs && !ui.ended && <GapDialog />}
+      {ui.logWords && !ui.ended && <WordsDialog />}
       <div class="toasts" aria-live="polite">
         {ui.toasts.map((t) => <div class={`toast paper ${t.tone ?? ''}`} key={t.id}>{t.text}</div>)}
       </div>

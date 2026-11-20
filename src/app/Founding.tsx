@@ -7,6 +7,7 @@ import { makeRng } from '../sim/rng';
 import { store } from '../game/store';
 import type { Goals } from '../sim/types';
 import { DARK_HINT, WEIRD_HINT } from './Settings';
+import { GoalFields } from './GoalFields';
 
 const newSeed = () => (Math.random() * 2 ** 31) >>> 0;
 const WEIRD = ['Historical', 'Folklore', 'Uncanny', 'Mythic', 'Fantastical'];
@@ -38,7 +39,6 @@ export function Founding() {
     const s = foundSettlement({ seed, name: name.trim() || 'Hearthwork', goals, settings: { darkness, weirdness } });
     store.setState(s);
   };
-  const setGoal = (k: keyof Goals, v: string) => setGoals({ ...goals, [k]: Math.max(0, Math.round(Number(v) || 0)) });
 
   return (
     <div class="founding">
@@ -58,17 +58,7 @@ export function Founding() {
           <label>The site</label>
           <button class="btn small" type="button" onClick={() => setSeed(newSeed())}>Look elsewhere along the river</button>
 
-          <label>Daily goal</label>
-          <div class="two">
-            <div><input type="number" min={5} max={720} value={goals.dailyMinutes} onChange={(e) => setGoal('dailyMinutes', (e.target as HTMLInputElement).value)} /><div class="hint">minutes of work</div></div>
-            <div><input type="number" min={0} max={20000} step={50} value={goals.dailyWords} onChange={(e) => setGoal('dailyWords', (e.target as HTMLInputElement).value)} /><div class="hint">or words written</div></div>
-          </div>
-          <label>Sparks (small goals along the way)</label>
-          <div class="two">
-            <div><input type="number" min={5} max={120} value={goals.sparkMinutes} onChange={(e) => setGoal('sparkMinutes', (e.target as HTMLInputElement).value)} /><div class="hint">every … minutes</div></div>
-            <div><input type="number" min={50} max={5000} step={50} value={goals.sparkWords} onChange={(e) => setGoal('sparkWords', (e.target as HTMLInputElement).value)} /><div class="hint">or every … words</div></div>
-          </div>
-          <p class="hint">Each Spark brings travelers to your gate and 1 Favor. Reaching your daily goal earns 5 Favor. Spend Favor on Acts: bless someone, create your own settler, send someone on a quest.</p>
+          <GoalFields goals={goals} onChange={setGoals} />
 
           <label>Darkness</label>
           <input class="slider" type="range" min={0} max={100} value={darkness} onInput={(e) => setDarkness(Number((e.target as HTMLInputElement).value))} />

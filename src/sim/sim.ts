@@ -14,7 +14,7 @@ import { population, seasonIndex, yearOf } from './world';
 
 export const SAVE_VERSION = 1;
 
-export const DEFAULT_GOALS: Goals = { dailyMinutes: 60, dailyWords: 1000, sparkMinutes: 20, sparkWords: 250 };
+export const DEFAULT_GOALS: Goals = { track: 'time', dailyMinutes: 60, dailyWords: 1000, sparkMinutes: 20, sparkWords: 250 };
 export const DEFAULT_SETTINGS: Settings = { darkness: 50, weirdness: 1 };
 
 export interface FoundingOptions {

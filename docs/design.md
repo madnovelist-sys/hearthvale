@@ -17,7 +17,7 @@ The art direction lives in its own document (the Art Design Document). This file
 | Question | Decision |
 | --- | --- |
 | Pace | 1 focus hour = 1 city year (360 days; a day is 10 focus seconds, a season 15 minutes). Adjustable later if it feels off. |
-| Measuring work | A start/stop timer, plus typing in a word count when a session ends. Word-count app integrations come later. |
+| Measuring work | The player chooses when founding (and can change it in Settings): **time worked** or **words written**. Either way a start/stop timer runs the city's clock. With words, Sparks and the daily goal come from the word count entered after each session, and the word field only appears in that mode. Word-count app integrations come later. |
 | Platform | Desktop app first (Mac now; Windows next), built with Tauri so Android and iOS can follow from the same code. |
 | Eras | Bronze to modern, following the timescale with randomness. Ages are named for the discovery or event that starts them (Age of Bronze, Age of Sail…). Art is organized into seven visual eras. |
 | Weirdness | A slider, 0–4: Historical, Folklore, Uncanny, Mythic, Fantastical. |
@@ -28,8 +28,8 @@ The art direction lives in its own document (the Art Design Document). This file
 | Tier | Default | Reward |
 | --- | --- | --- |
 | Every focus minute | — | City time moves forward |
-| Spark | every 20 minutes or 250 words | Three parties of travelers arrive at the gate (welcome one, or the city takes one in at dawn), plus 1 Favor |
-| Daily goal | 60 minutes or 1,000 words | +5 Favor (later: a Fortune, one of three rare opportunities) |
+| Spark | every 20 minutes, or every 250 words when tracking words | Three parties of travelers arrive at the gate (welcome one, or the city takes one in at dawn), plus 1 Favor |
+| Daily goal | 60 minutes, or 1,000 words when tracking words | +5 Favor (later: a Fortune, one of three rare opportunities) |
 | Weekly goal | 5 goal days in 7 | Later: a Wonder or a Golden Age |
 
 ## Acts (spent with Favor)

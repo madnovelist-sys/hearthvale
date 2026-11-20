@@ -9,9 +9,9 @@ Eight travelers light a fire by a river. Start a focus session and the sun rises
 
 ## Playing
 
-1. Found your settlement: name it, pick a site, set your daily goal and Sparks, and choose the Darkness and Weirdness.
+1. Found your settlement: name it, pick a site, choose whether to track time worked or words written, set your daily goal and Sparks, and choose the Darkness and Weirdness.
 2. Press **Start working** when you begin. Keep Hearthwork open in another window or on a second screen; it keeps time even when hidden or minimized.
-3. Press **Stop** when you take a break. Log your words, read what happened while you worked, welcome travelers, and spend Favor on Acts.
+3. Press **Stop** when you take a break. If you track words, enter what you wrote. Read what happened while you worked, welcome travelers, and spend Favor on Acts.
 
 Everything saves automatically every 30 seconds, with a backup from each of the last 7 days you played. **Settings → Export save file** makes a full backup you can keep anywhere.
 

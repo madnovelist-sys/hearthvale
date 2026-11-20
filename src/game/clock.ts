@@ -84,14 +84,16 @@ function accrue(s: GameState, dt: number, now: number, events: ClockEvents) {
 
   // Spread the simulation and the Sparks through the time in order, so
   // newcomers arrive in the right season even during a big catch-up.
-  const sparkLen = Math.max(1, s.goals.sparkMinutes) * 60_000;
+  // When progress is tracked in words, Sparks come from words instead.
+  const timeSparks = s.goals.track !== 'words';
+  const sparkLen = timeSparks ? Math.max(1, s.goals.sparkMinutes) * 60_000 : Infinity;
   let left = dt;
   while (left > 0) {
     const toDay = FOCUS_MS_PER_DAY - f.carryMs;
     const toSpark = sparkLen - f.sparkMs;
     const step = Math.min(left, toDay, toSpark);
     f.carryMs += step;
-    f.sparkMs += step;
+    if (timeSparks) f.sparkMs += step;
     left -= step;
     if (f.carryMs >= FOCUS_MS_PER_DAY - 1e-6) {
       f.carryMs = 0;
@@ -114,7 +116,7 @@ export function logWords(s: GameState, words: number, now: number, events: Clock
   if (last && now - last.end < 6 * 3_600_000) last.words += n;
   const per = Math.max(1, s.goals.sparkWords);
   s.focus.sparkWords += n;
-  while (s.focus.sparkWords >= per) {
+  while (s.goals.track === 'words' && s.focus.sparkWords >= per) {
     s.focus.sparkWords -= per;
     spark(s, now, 'words', events);
   }
@@ -136,9 +138,10 @@ function checkDailyGoal(s: GameState, now: number, events: ClockEvents) {
   const day = focusDay(s, now);
   if (day.goalMet) return;
   const g = s.goals;
-  const timeMet = g.dailyMinutes > 0 && day.ms >= g.dailyMinutes * 60_000;
-  const wordsMet = g.dailyWords > 0 && day.words >= g.dailyWords;
-  if (!timeMet && !wordsMet) return;
+  const met = g.track === 'words'
+    ? g.dailyWords > 0 && day.words >= g.dailyWords
+    : g.dailyMinutes > 0 && day.ms >= g.dailyMinutes * 60_000;
+  if (!met) return;
   day.goalMet = true;
   s.favor += 5;
   if (s.focus.running) s.focus.running.favor += 5;

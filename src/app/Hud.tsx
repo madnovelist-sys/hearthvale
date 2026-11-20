@@ -27,10 +27,15 @@ export function Hud() {
   const elapsed = sessionElapsed(s, now);
   const today = s.focus.days[localDate(now)];
   const g = s.goals;
-  const sparkFrac = Math.min(1, (s.focus.sparkMs + (running ? Math.min(now - s.focus.running!.lastTickAt, 60_000) : 0)) / (g.sparkMinutes * 60_000));
+  const byWords = g.track === 'words';
   const todayMs = (today?.ms ?? 0) + (running ? Math.max(0, elapsed - s.focus.running!.ms) : 0);
-  const goalFrac = g.dailyMinutes > 0 ? Math.min(1, todayMs / (g.dailyMinutes * 60_000)) : 0;
   const words = today?.words ?? 0;
+  const sparkFrac = byWords
+    ? Math.min(1, s.focus.sparkWords / Math.max(1, g.sparkWords))
+    : Math.min(1, (s.focus.sparkMs + (running ? Math.min(now - s.focus.running!.lastTickAt, 60_000) : 0)) / (g.sparkMinutes * 60_000));
+  const goalFrac = byWords
+    ? Math.min(1, words / Math.max(1, g.dailyWords))
+    : g.dailyMinutes > 0 ? Math.min(1, todayMs / (g.dailyMinutes * 60_000)) : 0;
   const waiting = s.arrivals.length;
   const yearName = currentYearName(s);
   const panel = store.ui.panel;
@@ -40,7 +45,9 @@ export function Hud() {
       {badge ? <span class="badge">{badge}</span> : null}
     </button>
   );
-  const nextSpark = Math.max(0, Math.ceil(((1 - sparkFrac) * g.sparkMinutes)));
+  const sparkLeft = byWords
+    ? `${Math.max(0, g.sparkWords - s.focus.sparkWords)} words`
+    : `${Math.max(0, Math.ceil((1 - sparkFrac) * g.sparkMinutes))} min`;
 
   return (
     <div class="hud paper" role="banner">
@@ -55,14 +62,17 @@ export function Hud() {
         {running
           ? <button class="btn stop" onClick={() => store.stop()}>Stop</button>
           : <button class="btn primary start" onClick={() => store.start()}>Start working</button>}
+        {byWords && !running && (
+          <button class="btn small" onClick={() => store.setUi({ logWords: true })} title="Add words you wrote">+ Words</button>
+        )}
         <div class="meters">
           <div class="meter" title="Every Spark brings travelers and 1 Favor">
-            <span>Spark</span><div class="bar"><i style={{ width: `${sparkFrac * 100}%` }} /></div><span>{nextSpark} min</span>
+            <span>Spark</span><div class="bar"><i style={{ width: `${sparkFrac * 100}%` }} /></div><span>{sparkLeft}</span>
           </div>
-          <div class="meter" title={`Daily goal: ${g.dailyMinutes} minutes or ${g.dailyWords} words. ${goalDaysThisWeek(s, now)} goal days this week.`}>
+          <div class="meter" title={`Daily goal: ${byWords ? `${g.dailyWords} words` : `${g.dailyMinutes} minutes`}. ${goalDaysThisWeek(s, now)} goal days this week.`}>
             <span>Today</span>
             <div class={`bar${today?.goalMet ? ' done' : ''}`}><i style={{ width: `${(today?.goalMet ? 1 : goalFrac) * 100}%` }} /></div>
-            <span>{Math.floor(todayMs / 60_000)}/{g.dailyMinutes} min{words ? ` · ${words} w` : ''}</span>
+            <span>{byWords ? `${words}/${g.dailyWords} words` : `${Math.floor(todayMs / 60_000)}/${g.dailyMinutes} min`}</span>
           </div>
         </div>
       </div>

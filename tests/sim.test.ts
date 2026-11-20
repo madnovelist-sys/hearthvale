@@ -113,14 +113,31 @@ describe('focus clock', () => {
     expect(s.arrivals.length).toBeGreaterThan(0);
   });
 
-  it('does not run the city while paused, and counts words as Sparks', () => {
+  it('does not run the city while paused', () => {
     const s = foundSettlement({ seed: 11, name: 'Z' });
-    const t0 = Date.now();
-    tick(s, t0 + 3_600_000);
+    tick(s, Date.now() + 3_600_000);
     expect(s.day).toBe(0);
-    logWords(s, 600, t0);
-    expect(s.arrivals.length).toBe(2);
+  });
+
+  it('when tracking words, Sparks and the daily goal come from words, not time', () => {
+    const s = foundSettlement({ seed: 11, name: 'Z', goals: { track: 'words', dailyMinutes: 60, dailyWords: 1000, sparkMinutes: 20, sparkWords: 250 } });
+    const t0 = new Date(2026, 10, 20, 9, 0).getTime();
+    startSession(s, t0);
+    for (let m = 1; m <= 60; m++) tick(s, t0 + m * 60_000);
+    stopSession(s, t0 + 60 * 60_000);
+    expect(s.day).toBe(DAYS_PER_YEAR); // the city still lives while the timer runs
+    expect(s.arrivals.length).toBe(0); // but an hour of time alone brings no Sparks
+    expect(focusDay(s, t0).goalMet).toBe(false);
+    logWords(s, 1100, t0 + 61 * 60_000);
+    expect(s.arrivals.length).toBe(3); // 4 Sparks; the oldest group moves on past 3 waiting
     expect(s.focus.sparkWords).toBe(100);
+    expect(focusDay(s, t0).goalMet).toBe(true);
+  });
+
+  it('when tracking time, logged words are recorded but bring no Sparks', () => {
+    const s = foundSettlement({ seed: 11, name: 'Z' });
+    logWords(s, 600, Date.now());
+    expect(s.arrivals.length).toBe(0);
   });
 
   it('treats a very long gap as an interruption, not work', () => {

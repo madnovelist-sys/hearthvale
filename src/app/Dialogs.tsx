@@ -38,15 +38,15 @@ export function SessionEnd() {
           <div class="stat"><b>{count('death')}</b><span>Deaths</span></div>
           <div class="stat"><b>{count('arrival') + count('patron')}</b><span>Arrivals</span></div>
         </div>
-        <div class="form">
-          <label for="words">How many words did you write? (optional)</label>
+        {s.goals.track === 'words' && <div class="form">
+          <label for="words">How many words did you write?</label>
           <div class="two">
             <input id="words" type="text" inputMode="numeric" placeholder="e.g. 850" value={words} disabled={saved}
               onInput={(e) => setWords((e.target as HTMLInputElement).value)} onKeyDown={(e) => e.key === 'Enter' && saveWords()} />
             <button class="btn" type="button" disabled={saved || !words} onClick={saveWords}>{saved ? 'Logged' : 'Log words'}</button>
           </div>
-          <p class="hint">Every {s.goals.sparkWords} words is a Spark of its own.</p>
-        </div>
+          <p class="hint">Every {s.goals.sparkWords} words is a Spark.</p>
+        </div>}
         {highlights.length > 0 && (
           <>
             <h4 style={{ margin: '14px 0 6px', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)' }}>While you worked</h4>
@@ -77,6 +77,31 @@ export function GapDialog() {
         <div class="row-btns">
           <button class="btn" onClick={() => store.resolveGap(false)}>Don't count it</button>
           <button class="btn primary" onClick={() => store.resolveGap(true)}>Yes, count it</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function WordsDialog() {
+  const s = store.state!;
+  const [words, setWords] = useState('');
+  const close = () => store.setUi({ logWords: false });
+  const save = () => {
+    const n = Number(words.replace(/[^0-9]/g, ''));
+    if (n > 0) store.logWords(n);
+    close();
+  };
+  return (
+    <div class="scrim" onClick={(e) => e.target === e.currentTarget && close()}>
+      <div class="dialog paper form" role="dialog" aria-labelledby="words-title">
+        <h2 id="words-title">Log words</h2>
+        <p class="lead">Add words you wrote today. Every {s.goals.sparkWords} words is a Spark.</p>
+        <input id="words" type="text" inputMode="numeric" placeholder="e.g. 400" value={words} autoFocus
+          onInput={(e) => setWords((e.target as HTMLInputElement).value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
+        <div class="row-btns">
+          <button class="btn" onClick={close}>Cancel</button>
+          <button class="btn primary" disabled={!words} onClick={save}>Add</button>
         </div>
       </div>
     </div>

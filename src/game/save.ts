@@ -94,6 +94,7 @@ function migrate(s: GameState): GameState {
   s.lateReturns ??= [];
   s.pending ??= [];
   s.arrivals ??= [];
+  s.goals.track ??= 'time';
   return s;
 }
 

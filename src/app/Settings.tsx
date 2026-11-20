@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { exportGame, importGame, listBackups, loadBackup, deleteSave } from '../game/save';
 import { store } from '../game/store';
 import { exportChronicle } from './Chronicle';
+import { GoalFields } from './GoalFields';
 
 const DARK_LABEL = (d: number) => (d < 34 ? 'Gentle' : d < 67 ? 'Balanced' : 'Grim');
 const WEIRD_LABEL = ['Historical', 'Folklore', 'Uncanny', 'Mythic', 'Fantastical'];
@@ -25,8 +26,6 @@ export function SettingsPanel() {
   const [confirm, setConfirm] = useState('');
   useEffect(() => { listBackups().then(setBackups); }, []);
   const g = s.goals;
-  const num = (v: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
-  const setGoal = (k: keyof typeof g, v: number) => { g[k] = v; store.changed(); };
   const onImport = async (e: Event) => {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
@@ -45,15 +44,7 @@ export function SettingsPanel() {
   return (
     <div class="form">
       <h4 style={{ margin: '0 0 4px' }}>Goals</h4>
-      <div class="two">
-        <div><label>Daily goal, minutes</label><input type="number" min={0} max={720} value={g.dailyMinutes} onChange={(e) => setGoal('dailyMinutes', num((e.target as HTMLInputElement).value, 0, 720))} /></div>
-        <div><label>or words</label><input type="number" min={0} max={20000} step={50} value={g.dailyWords} onChange={(e) => setGoal('dailyWords', num((e.target as HTMLInputElement).value, 0, 20000))} /></div>
-      </div>
-      <div class="two">
-        <div><label>A Spark every … minutes</label><input type="number" min={5} max={120} value={g.sparkMinutes} onChange={(e) => setGoal('sparkMinutes', num((e.target as HTMLInputElement).value, 5, 120))} /></div>
-        <div><label>or every … words</label><input type="number" min={50} max={5000} step={50} value={g.sparkWords} onChange={(e) => setGoal('sparkWords', num((e.target as HTMLInputElement).value, 50, 5000))} /></div>
-      </div>
-      <p class="hint">Reaching the daily goal (time or words, whichever comes first) earns 5 Favor. Each Spark earns 1 Favor and brings travelers.</p>
+      <GoalFields goals={g} onChange={(next) => { Object.assign(g, next); store.changed(); }} />
 
       <h4 style={{ margin: '16px 0 4px' }}>Darkness: {DARK_LABEL(s.settings.darkness)}</h4>
       <input class="slider" type="range" min={0} max={100} value={s.settings.darkness} onInput={(e) => { s.settings.darkness = Number((e.target as HTMLInputElement).value); store.changed(); }} />
