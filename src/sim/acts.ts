@@ -1,0 +1,136 @@
+// The player's powers, paid for with Favor. Acts nudge the settlement; they
+// never run it. Anything that brings people or sends them away waits for dawn.
+import { log, P } from './chronicle';
+import { settleParty } from './arrivals';
+import { departQuest } from './quests';
+import { rand } from './rng';
+import { DAYS_PER_YEAR, type GameState, type Party, type PersonDraft, type QuestKind } from './types';
+import { ageOf, yearOf } from './world';
+
+export type ActId = 'bless' | 'name' | 'settler' | 'quest';
+
+export const ACTS: { id: ActId; label: string; cost: number; blurb: string }[] = [
+  { id: 'bless', label: 'Bless', cost: 1, blurb: 'A year of good luck and health for one person.' },
+  { id: 'name', label: 'Name', cost: 1, blurb: 'Name this year, or a newborn.' },
+  { id: 'settler', label: 'Create a Settler', cost: 3, blurb: 'Someone of your making arrives at dawn.' },
+  { id: 'quest', label: 'Send on a Quest', cost: 3, blurb: 'Send someone (and companions) out into the world.' },
+];
+
+export const actCost = (id: ActId) => ACTS.find((a) => a.id === id)!.cost;
+
+export type ActResult = { ok: true } | { ok: false; reason: string };
+
+function spend(s: GameState, id: ActId): ActResult {
+  const cost = actCost(id);
+  if (s.favor < cost) return { ok: false, reason: `You need ${cost} Favor for that.` };
+  s.favor -= cost;
+  return { ok: true };
+}
+
+export function bless(s: GameState, personId: number): ActResult {
+  const p = s.people[personId];
+  if (!p || !p.alive) return { ok: false, reason: 'They are no longer living.' };
+  if (p.away !== undefined) return { ok: false, reason: 'They are far away.' };
+  const paid = spend(s, 'bless');
+  if (!paid.ok) return paid;
+  p.blessedUntil = Math.max(p.blessedUntil ?? 0, s.day) + DAYS_PER_YEAR;
+  p.mood += 15;
+  if (p.sick) p.sick.severity *= 0.5;
+  log(s, 'patron', `A warmth settled over ${P(p.id)}. Nobody could say why, but ${p.sex === 'f' ? 'she' : 'he'} smiled more that year.`, [p.id], 2);
+  return { ok: true };
+}
+
+export function nameYear(s: GameState, name: string): ActResult {
+  const clean = name.trim().slice(0, 60);
+  if (!clean) return { ok: false, reason: 'Give the year a name.' };
+  const paid = spend(s, 'name');
+  if (!paid.ok) return paid;
+  const year = yearOf(s.day);
+  const title = /^the year/i.test(clean) ? clean : `The Year of ${clean}`;
+  s.yearNames[year] = title;
+  s.playerNamedYears[year] = true;
+  log(s, 'naming', `People began calling it ${title}, though no one remembered who said it first.`, [], 2);
+  return { ok: true };
+}
+
+export function nameChild(s: GameState, personId: number, first: string): ActResult {
+  const p = s.people[personId];
+  const clean = first.trim().slice(0, 24);
+  if (!p || !p.alive || ageOf(s, p) >= 1) return { ok: false, reason: 'Only a baby under a year old can be named.' };
+  if (!clean) return { ok: false, reason: 'Choose a name.' };
+  const paid = spend(s, 'name');
+  if (!paid.ok) return paid;
+  const old = p.first;
+  p.first = clean;
+  log(s, 'naming', `The baby everyone had been calling ${old} became ${P(p.id)}. ${p.sex === 'f' ? 'Her' : 'His'} parents said the name came to them in a dream.`, [p.id], 2);
+  return { ok: true };
+}
+
+export function createSettler(s: GameState, draft: PersonDraft): ActResult {
+  if (!draft.first.trim() || !draft.family.trim()) return { ok: false, reason: 'Your settler needs a full name.' };
+  if (draft.age < 16 || draft.age > 70) return { ok: false, reason: 'Settlers arrive between 16 and 70.' };
+  const paid = spend(s, 'settler');
+  if (!paid.ok) return paid;
+  const party: Party = {
+    id: s.nextId.party++,
+    story: draft.backstory?.trim() || `${draft.first} came of ${draft.sex === 'f' ? 'her' : 'his'} own accord.`,
+    people: [{ ...draft, first: draft.first.trim(), family: draft.family.trim(), patron: true }],
+  };
+  s.pending.push({ kind: 'party', party, patron: true });
+  return { ok: true };
+}
+
+export function sendOnQuest(s: GameState, leaderId: number, memberIds: number[], kind: QuestKind): ActResult {
+  const all = [leaderId, ...memberIds];
+  for (const id of all) {
+    const p = s.people[id];
+    if (!p || !p.alive || p.away !== undefined) return { ok: false, reason: 'Everyone going must be here and alive.' };
+    if (ageOf(s, p) < 16) return { ok: false, reason: 'Children cannot be sent on quests.' };
+    if (p.preparing) return { ok: false, reason: `${p.first} is already promised to a quest.` };
+  }
+  const paid = spend(s, 'quest');
+  if (!paid.ok) return paid;
+  for (const id of all) s.people[id].preparing = true;
+  s.pending.push({ kind: 'quest', leader: leaderId, members: memberIds, questKind: kind });
+  return { ok: true };
+}
+
+/** Welcome one party from a waiting group. The other two move on. */
+export function welcomeParty(s: GameState, partyId: number, now: boolean): ActResult {
+  const gi = s.arrivals.findIndex((g) => g.some((p) => p.id === partyId));
+  if (gi < 0) return { ok: false, reason: 'They have already moved on.' };
+  const party = s.arrivals[gi].find((p) => p.id === partyId)!;
+  s.arrivals.splice(gi, 1);
+  if (now) settleParty(s, party);
+  else s.pending.push({ kind: 'party', party });
+  return { ok: true };
+}
+
+/** Groups nobody chose from: the settlement takes one party from each in on its own. */
+export function settleUnchosen(s: GameState, keep = 0) {
+  while (s.arrivals.length > keep) {
+    const group = s.arrivals.shift()!;
+    settleParty(s, group[Math.floor(rand(s.rng) * group.length)]);
+  }
+}
+
+/** Dawn: everything queued during the break happens as work begins. */
+export function applyDawn(s: GameState) {
+  settleUnchosen(s);
+  applyPending(s);
+}
+
+/** Carry out queued acts now (used directly when an act is made mid-session). */
+export function applyPending(s: GameState) {
+  const queue = s.pending;
+  s.pending = [];
+  for (const act of queue) {
+    if (act.kind === 'party') settleParty(s, act.party, act.patron);
+    else {
+      const leader = s.people[act.leader];
+      const members = act.members.map((id) => s.people[id]).filter((m) => m?.alive && m.away === undefined);
+      if (leader?.alive && leader.away === undefined) departQuest(s, leader, members, act.questKind, true);
+      else for (const m of members) m.preparing = undefined;
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the game's window may do. It needs nothing beyond the basics.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

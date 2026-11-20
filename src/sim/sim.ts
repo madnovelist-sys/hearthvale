@@ -1,0 +1,161 @@
+// The simulation's entry points: found a settlement, and advance it one day.
+import { log, nameYear, P } from './chronicle';
+import { economyDay, economySeason, assignJobs } from './economy';
+import { lifeDay } from './life';
+import { momentsDay } from './moments';
+import { generateMap } from './mapgen';
+import { createPerson, draftPerson } from './people';
+import { addBuilding, findSite, plannerDay } from './planner';
+import { questsDay, questsSeason } from './quests';
+import { makeRng, chance, int, pick } from './rng';
+import { familyName } from './names';
+import { DAYS_PER_SEASON, DAYS_PER_YEAR, type GameState, type Goals, type Settings } from './types';
+import { population, seasonIndex, yearOf } from './world';
+
+export const SAVE_VERSION = 1;
+
+export const DEFAULT_GOALS: Goals = { dailyMinutes: 60, dailyWords: 1000, sparkMinutes: 20, sparkWords: 250 };
+export const DEFAULT_SETTINGS: Settings = { darkness: 50, weirdness: 1 };
+
+export interface FoundingOptions {
+  seed: number;
+  name: string;
+  goals?: Goals;
+  settings?: Settings;
+}
+
+export function foundSettlement(opts: FoundingOptions): GameState {
+  const { map, hearth } = generateMap(opts.seed);
+  const s: GameState = {
+    version: SAVE_VERSION,
+    seed: opts.seed,
+    rng: makeRng(opts.seed),
+    name: opts.name,
+    stage: 'settlement',
+    age: { name: 'The Age of Bronze', era: 'bronze', since: 0 },
+    day: 0,
+    map,
+    hearth,
+    people: [],
+    buildings: [],
+    graves: [],
+    quests: [],
+    chronicle: [],
+    yearNames: {},
+    playerNamedYears: {},
+    stores: { food: 260, wood: 40, goods: 0 },
+    favor: 2,
+    arrivals: [],
+    pending: [],
+    goals: { ...(opts.goals ?? DEFAULT_GOALS) },
+    settings: { ...(opts.settings ?? DEFAULT_SETTINGS) },
+    focus: { running: null, carryMs: 0, sparkMs: 0, sparkWords: 0, totalMs: 0, days: {}, sessions: [] },
+    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0 },
+    flags: { relics: 0, knowledge: 0 },
+    lateReturns: [],
+  };
+  const r = s.rng;
+
+  addBuilding(s, 'hearth', hearth.x, hearth.y, { built: true });
+  addBuilding(s, 'stone', hearth.x + 1, hearth.y - 1, { built: true });
+
+  // The founders: two families and a couple of loners.
+  const familyA = familyName(r);
+  const familyB = familyName(r);
+  const households = [
+    [
+      draftPerson(r, { age: int(r, 28, 38), family: familyA, sex: 'f', orientation: 'straight', spouseOf: 1 }),
+      draftPerson(r, { age: int(r, 28, 40), family: familyA, sex: 'm', orientation: 'straight', spouseOf: 0 }),
+      draftPerson(r, { age: int(r, 4, 10), family: familyA, parentsIdx: [0, 1] }),
+    ],
+    [
+      draftPerson(r, { age: int(r, 22, 30), family: familyB, sex: 'm', orientation: 'straight', spouseOf: 1 }),
+      draftPerson(r, { age: int(r, 21, 30), family: familyB, sex: 'f', orientation: 'straight', spouseOf: 0 }),
+    ],
+    [draftPerson(r, { age: int(r, 50, 62) })],
+    [draftPerson(r, { age: int(r, 17, 26) })],
+    [draftPerson(r, { age: int(r, 18, 30) })],
+  ];
+  for (const drafts of households) {
+    const made = drafts.map((d) => createPerson(s, d, 'founder'));
+    drafts.forEach((d, i) => {
+      if (d.spouseOf !== undefined) made[i].spouse = made[d.spouseOf].id;
+      for (const pi of d.parentsIdx ?? []) {
+        made[i].parents.push(made[pi].id);
+        made[pi].children.push(made[i].id);
+      }
+    });
+    const site = findSite(s, 'tent');
+    const tent = site ? addBuilding(s, 'tent', site.x, site.y) : undefined;
+    for (const p of made) p.home = tent?.id;
+  }
+  // The first year is a lucky one: the founders are under the fire's protection.
+  for (const p of s.people) p.blessedUntil = DAYS_PER_YEAR;
+  assignJobs(s);
+  const elder = s.people.find((p) => p.origin === 'founder' && p.born < -50 * DAYS_PER_YEAR);
+  log(
+    s, 'founding',
+    `In the spring of the first year, eight travelers stopped beside the river and lit a fire. ${elder ? `${P(elder.id)}, the eldest, said the ground felt right.` : ''} They called the place ${s.name}.`,
+    s.people.map((p) => p.id), 10, 'The Year of the First Fire',
+  );
+  return s;
+}
+
+/** Advance the settlement by one day. */
+export function stepDay(s: GameState) {
+  const d = s.day;
+  if (d % DAYS_PER_SEASON === 0 && d > 0) onSeason(s);
+  economyDay(s);
+  lifeDay(s);
+  questsDay(s);
+  plannerDay(s);
+  momentsDay(s);
+  if (d % 30 === 0) assignJobs(s);
+  checkStage(s);
+  s.day += 1;
+  if (s.day % DAYS_PER_YEAR === 0) nameYear(s, yearOf(s.day - 1));
+}
+
+function onSeason(s: GameState) {
+  economySeason(s);
+  questsSeason(s);
+  if (seasonIndex(s.day) === 0) omens(s);
+}
+
+function omens(s: GameState) {
+  const w = s.settings.weirdness;
+  const r = s.rng;
+  if (w === 0) {
+    if (chance(r, 0.04)) log(s, 'omen', `A comet hung over ${s.name} for nine nights. Some said it meant good fortune; some said the opposite.`, [], 5, 'The Year of the Comet');
+    return;
+  }
+  if (!chance(r, 0.12 + w * 0.06)) return;
+  const options: [string, string][] = [
+    [`Lights were seen over the marsh at night, drifting against the wind.`, 'The Year of the Marsh Lights'],
+    [`The Old Stone hummed for a whole night. Dogs would not go near it.`, 'The Year the Stone Hummed'],
+    [`A comet hung over ${s.name} for nine nights, green at the edges.`, 'The Year of the Comet'],
+  ];
+  if (w >= 2) options.push(
+    [`After a storm, the river turned up bones the size of a man, from some animal nobody could name.`, 'The Year of the Great Bones'],
+    [`For three days, every bird in the valley flew west. Then they came back, as if nothing had happened.`, 'The Year of the Birds'],
+  );
+  if (w >= 3) options.push(
+    [`Something large walked the edge of the woods at dusk, and left tracks with too many toes.`, 'The Year of the Tracks'],
+  );
+  if (w >= 4) options.push(
+    [`A stone the size of a hut was found floating a hand's width above the meadow. Children dared each other to crawl under it.`, 'The Year of the Floating Stone'],
+  );
+  const [text, name] = pick(r, options);
+  log(s, 'omen', text, [], 5, name);
+}
+
+function checkStage(s: GameState) {
+  if (s.stage === 'settlement' && population(s) >= 50) {
+    s.stage = 'village';
+    log(s, 'stage', `${s.name} had grown into a village. The elders marked the day by planting an oak beside the fire, and a charter was sung instead of written: everyone who lived here, and everyone who would.`, [], 9, 'The Year of the Charter');
+  }
+}
+
+export function advanceDays(s: GameState, days: number) {
+  for (let i = 0; i < days; i++) stepDay(s);
+}

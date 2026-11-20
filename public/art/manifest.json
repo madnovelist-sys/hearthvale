@@ -1,0 +1,31 @@
+{
+  "sprites": {
+    "bld_home_bronze_1x1_v01": {
+      "file": "buildings/bronze/bld_home_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        151,
+        281.3
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [
+        [
+          75.7,
+          205.9
+        ],
+        [
+          198.3,
+          172.1
+        ],
+        [
+          238.2,
+          167.5
+        ]
+      ],
+      "smoke": []
+    }
+  }
+}

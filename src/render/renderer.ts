@@ -1,0 +1,567 @@
+// The isometric view: a miniature diorama of the settlement. Terrain is drawn
+// as batched diamonds; everything standing on it is a depth-sorted sprite.
+import { TERRAIN, TREE, type Building, type GameState } from '../sim/types';
+import { seasonIndex, seasonProgress } from '../sim/world';
+import { hashString } from '../sim/rng';
+import { C, CLOTHES, GRASS_BY_SEASON, HAIR, SKIN, mix, shade } from './palette';
+import { buildingSprite, graveSprite, scaffoldSprite, treeSprite, type Sprite } from './sprites';
+import { Walkers } from './walkers';
+import type { Selection } from '../game/store';
+
+const BASE_TW = 64; // tile width in CSS px at zoom 1
+export const MIN_ZOOM = 0.25;
+export const MAX_ZOOM = 3;
+
+interface Puff { x: number; y: number; z: number; age: number; life: number; drift: number; size: number }
+interface Flake { x: number; y: number; speed: number; sway: number }
+
+type Drawable =
+  | { depth: number; kind: 'sprite'; sprite: Sprite; gx: number; gy: number; b?: Building; alpha?: number }
+  | { depth: number; kind: 'walker'; id: number };
+
+export class Renderer {
+  readonly g: CanvasRenderingContext2D;
+  dpr = 1;
+  w = 0;
+  h = 0;
+  cam = { x: 32, y: 32, zoom: 0.9 };
+  /** 0 = full day, 1 = full night. The city is dark while you're not working. */
+  night = 1;
+  walkers = new Walkers();
+  private puffs: Puff[] = [];
+  private flakes: Flake[] = [];
+  private last = 0;
+  private lastSmoke = 0;
+  private hoverPerson: number | null = null;
+  private drawn: Drawable[] = [];
+
+  constructor(readonly canvas: HTMLCanvasElement) {
+    this.g = canvas.getContext('2d')!;
+    this.resize();
+  }
+
+  get tw() { return BASE_TW * this.cam.zoom; }
+
+  resize() {
+    const r = this.canvas.getBoundingClientRect();
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.w = Math.max(1, r.width);
+    this.h = Math.max(1, r.height);
+    this.canvas.width = Math.round(this.w * this.dpr);
+    this.canvas.height = Math.round(this.h * this.dpr);
+  }
+
+  centerOn(x: number, y: number) { this.cam.x = x; this.cam.y = y; }
+
+  toScreen(gx: number, gy: number) {
+    const tw = this.tw;
+    return {
+      x: this.w / 2 + ((gx - this.cam.x) - (gy - this.cam.y)) * (tw / 2),
+      y: this.h / 2 + ((gx - this.cam.x) + (gy - this.cam.y)) * (tw / 4),
+    };
+  }
+
+  toGrid(sx: number, sy: number) {
+    const tw = this.tw;
+    const a = (sx - this.w / 2) / (tw / 2);
+    const b = (sy - this.h / 2) / (tw / 4);
+    return { x: (a + b) / 2 + this.cam.x, y: (b - a) / 2 + this.cam.y };
+  }
+
+  zoomAt(sx: number, sy: number, factor: number) {
+    const before = this.toGrid(sx, sy);
+    this.cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.cam.zoom * factor));
+    const after = this.toGrid(sx, sy);
+    this.cam.x += before.x - after.x;
+    this.cam.y += before.y - after.y;
+  }
+
+  pan(dx: number, dy: number) {
+    const tw = this.tw;
+    const a = -dx / (tw / 2);
+    const b = -dy / (tw / 4);
+    this.cam.x += (a + b) / 2;
+    this.cam.y += (b - a) / 2;
+  }
+
+  // -------------------------------------------------------------------------
+
+  frame(s: GameState, now: number, running: boolean, selection: Selection) {
+    // Clamp: timestamps can jump (sleep, wake, a reset clock); never run time backwards.
+    const dt = this.last ? Math.max(0, Math.min(250, now - this.last)) : 16;
+    this.last = now;
+    const target = running ? 0 : 1;
+    this.night += (target - this.night) * Math.min(1, dt / 900);
+    if (Math.abs(this.night - target) < 0.002) this.night = target;
+    this.walkers.update(s, now, dt, this.night);
+
+    const g = this.g;
+    g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    const bg = g.createLinearGradient(0, 0, 0, this.h);
+    bg.addColorStop(0, '#3E4A3B');
+    bg.addColorStop(1, '#262E28');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, this.w, this.h);
+
+    const season = seasonIndex(s.day);
+    // Seasons fade in over their first week or so (the very first spring starts green).
+    const blend = s.day < 90 ? 1 : Math.min(1, seasonProgress(s.day) / 0.09);
+    const grass = mix(GRASS_BY_SEASON[(season + 3) % 4], GRASS_BY_SEASON[season], Math.round(blend * 8) / 8);
+    // Snow lingers into early spring and arrives partway into winter.
+    const winter = (season === 3 && blend > 0.5) || (season === 0 && blend < 0.5 && s.day >= 90);
+    const treeSeason = blend < 0.5 && s.day >= 90 ? (season + 3) % 4 : season;
+
+    this.drawBase(s, grass);
+    this.drawTerrain(s, grass, winter, now);
+    this.drawFields(s, season, blend);
+    this.collect(s, treeSeason, winter, selection);
+    this.drawObjects(s, now, selection);
+    this.drawHearthFire(s, now, running);
+    this.updateSmoke(s, now, dt, running);
+    this.drawLighting(s, now);
+    if (season === 3) this.drawSnow(dt);
+  }
+
+  /** The diorama's earthen sides along the front edges of the map. */
+  private drawBase(s: GameState, grass: string) {
+    const g = this.g;
+    const { w, h } = s.map;
+    const depth = this.tw * 0.55;
+    const left = this.toScreen(0, h);
+    const bottom = this.toScreen(w, h);
+    const right = this.toScreen(w, 0);
+    const layer = (a: { x: number; y: number }, b: { x: number; y: number }, color: string, top: number, bottom2: number) => {
+      g.beginPath();
+      g.moveTo(a.x, a.y + top); g.lineTo(b.x, b.y + top); g.lineTo(b.x, b.y + bottom2); g.lineTo(a.x, a.y + bottom2);
+      g.closePath(); g.fillStyle = color; g.fill();
+    };
+    layer(left, bottom, shade(grass, -0.2), 0, depth * 0.12);
+    layer(left, bottom, shade(C.soil, 0.05), depth * 0.12, depth * 0.6);
+    layer(left, bottom, shade(C.soil, -0.25), depth * 0.6, depth);
+    layer(bottom, right, shade(grass, -0.32), 0, depth * 0.12);
+    layer(bottom, right, shade(C.soil, -0.15), depth * 0.12, depth * 0.6);
+    layer(bottom, right, shade(C.soil, -0.4), depth * 0.6, depth);
+  }
+
+  private visibleRange(s: GameState) {
+    const pts = [this.toGrid(0, 0), this.toGrid(this.w, 0), this.toGrid(0, this.h), this.toGrid(this.w, this.h + this.tw * 2)];
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    return {
+      x0: Math.max(0, Math.floor(Math.min(...xs)) - 2),
+      x1: Math.min(s.map.w - 1, Math.ceil(Math.max(...xs)) + 2),
+      y0: Math.max(0, Math.floor(Math.min(...ys)) - 2),
+      y1: Math.min(s.map.h - 1, Math.ceil(Math.max(...ys)) + 2),
+    };
+  }
+
+  private drawTerrain(s: GameState, grass: string, winter: boolean, now: number) {
+    const g = this.g;
+    const { map } = s;
+    const tw = this.tw;
+    const hw = tw / 2 + 0.6;
+    const hh = tw / 4 + 0.4;
+    const buckets = new Map<string, Path2D>();
+    const r = this.visibleRange(s);
+    const sand = winter ? mix(C.sand, C.snow, 0.6) : C.sand;
+    const rock = winter ? mix(C.stone, C.snow, 0.5) : C.stone;
+    const marsh = winter ? mix(C.marsh, C.snow, 0.5) : C.marsh;
+    const shallow = winter ? mix(C.shallow, '#DCEAF0', 0.35) : C.shallow;
+    const trail = winter ? mix(C.dirt, C.snow, 0.45) : C.dirt;
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        const i = y * map.w + x;
+        const t = map.terrain[i];
+        const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+        const vary = ((n % 3) - 1) * 0.035;
+        let col: string;
+        if (t === TERRAIN.DEEP) col = C.deep;
+        else if (t === TERRAIN.WATER) col = shallow;
+        else if (t === TERRAIN.SAND) col = shade(sand, vary);
+        else if (t === TERRAIN.ROCK) col = shade(rock, vary);
+        else if (t === TERRAIN.MARSH) col = shade(marsh, vary);
+        else {
+          const fert = map.fertility[i] > 0.6 && !winter ? -0.04 : 0; // richer soil, deeper green
+          col = shade(grass, vary + fert);
+        }
+        const wear = map.wear[i];
+        if (wear > 0.7 && t !== TERRAIN.WATER && t !== TERRAIN.DEEP) col = mix(col, trail, Math.min(4, Math.round(wear))/ 4.6);
+        const c = this.toScreen(x + 0.5, y + 0.5);
+        if (c.x < -tw || c.x > this.w + tw || c.y < -tw || c.y > this.h + tw) continue;
+        let p = buckets.get(col);
+        if (!p) { p = new Path2D(); buckets.set(col, p); }
+        p.moveTo(c.x, c.y - hh); p.lineTo(c.x + hw, c.y); p.lineTo(c.x, c.y + hh); p.lineTo(c.x - hw, c.y); p.closePath();
+      }
+    }
+    for (const [col, p] of buckets) { g.fillStyle = col; g.fill(p); }
+
+    // Glints on the water and tufts in the grass, when close enough to see them.
+    if (tw >= 56) {
+      g.lineWidth = Math.max(1, tw / 48);
+      g.strokeStyle = 'rgba(255,255,255,0.35)';
+      g.beginPath();
+      const phase = now / 1400;
+      for (let y = r.y0; y <= r.y1; y++) {
+        for (let x = r.x0; x <= r.x1; x++) {
+          const i = y * map.w + x;
+          const t = map.terrain[i];
+          const n = ((x * 2654435761) ^ (y * 40503)) >>> 0;
+          const c = this.toScreen(x + 0.5, y + 0.5);
+          if ((t === TERRAIN.WATER || t === TERRAIN.DEEP) && n % 5 === 0 && !winter) {
+            const k = Math.sin(phase + (n % 100)) * 0.5 + 0.5;
+            if (k > 0.55) { g.moveTo(c.x - tw * 0.12, c.y + tw * 0.03 * k); g.lineTo(c.x + tw * 0.1, c.y + tw * 0.03 * k); }
+          }
+        }
+      }
+      g.stroke();
+      if (!winter) {
+        g.strokeStyle = shade(grass, -0.22);
+        g.lineWidth = Math.max(1, tw / 64);
+        g.beginPath();
+        for (let y = r.y0; y <= r.y1; y++) {
+          for (let x = r.x0; x <= r.x1; x++) {
+            const i = y * map.w + x;
+            if (map.terrain[i] !== TERRAIN.GRASS || map.occ[i] || map.wear[i] > 1) continue;
+            const n = ((x * 2246822519) ^ (y * 3266489917)) >>> 0;
+            if (n % 4) continue;
+            const c = this.toScreen(x + ((n >> 4) % 70) / 100 + 0.15, y + ((n >> 12) % 70) / 100 + 0.15);
+            const l = tw * 0.06;
+            g.moveTo(c.x, c.y); g.lineTo(c.x - l * 0.4, c.y - l);
+            g.moveTo(c.x, c.y); g.lineTo(c.x + l * 0.3, c.y - l * 1.1);
+          }
+        }
+        g.stroke();
+      }
+    }
+  }
+
+  private drawFields(s: GameState, season: number, blend: number) {
+    const g = this.g;
+    const crop = ['#8DBE5A', '#B7B24A', '#D9B24A', ''][season];
+    for (const b of s.buildings) {
+      if (b.kind !== 'field' || b.removed) continue;
+      const pts = [this.toScreen(b.x, b.y), this.toScreen(b.x + b.w, b.y), this.toScreen(b.x + b.w, b.y + b.h), this.toScreen(b.x, b.y + b.h)];
+      if (pts.every((p) => p.x < -200 || p.x > this.w + 200 || p.y < -200 || p.y > this.h + 200)) continue;
+      g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath();
+      g.fillStyle = season === 3 && blend > 0.5 ? mix(C.soil, C.snow, 0.55) : b.built ? C.soil : mix(C.soil, C.summerGrass, 0.4);
+      g.fill();
+      g.strokeStyle = shade(C.timber, -0.1); g.lineWidth = Math.max(1, this.tw / 40); g.stroke();
+      if (!b.built || season === 3) continue;
+      // Crop rows
+      const rows = 6;
+      const height = season === 0 ? 0.05 : season === 1 ? 0.12 : season === 2 && blend < 0.7 ? 0.14 : 0.04;
+      g.strokeStyle = crop;
+      g.lineWidth = Math.max(1.2, this.tw * (season === 0 ? 0.04 : 0.08));
+      g.lineCap = 'round';
+      g.beginPath();
+      for (let i = 0; i < rows; i++) {
+        const t = (i + 0.5) / rows;
+        const a = this.toScreen(b.x + 0.12, b.y + t * b.h);
+        const c = this.toScreen(b.x + b.w - 0.12, b.y + t * b.h);
+        g.moveTo(a.x, a.y - this.tw * height * 0.5);
+        g.lineTo(c.x, c.y - this.tw * height * 0.5);
+      }
+      g.stroke();
+      g.lineCap = 'butt';
+    }
+  }
+
+  private collect(s: GameState, season: number, winter: boolean, _selection: Selection) {
+    const list: Drawable[] = [];
+    const r = this.visibleRange(s);
+    const { map } = s;
+    for (let y = r.y0; y <= r.y1; y++) {
+      for (let x = r.x0; x <= r.x1; x++) {
+        const t = map.trees[y * map.w + x];
+        if (t === TREE.NONE) continue;
+        const v = hashString(`${x},${y}`) % 3;
+        list.push({ depth: x + y + 2, kind: 'sprite', sprite: treeSprite(t, winter ? 3 : season, v), gx: x + 1, gy: y + 1 });
+      }
+    }
+    for (const b of s.buildings) {
+      if (b.removed || b.kind === 'field') continue;
+      if (b.x + b.w < r.x0 || b.x > r.x1 + 1 || b.y + b.h < r.y0 || b.y > r.y1 + 1) continue;
+      const sprite = b.built ? buildingSprite(b.kind, b.variant, winter) : scaffoldSprite(b.w, b.h, b.progress / Math.max(1, b.required));
+      const depth = b.kind === 'graveyard' ? b.x + b.y + 0.5 : b.x + b.w + b.y + b.h;
+      list.push({ depth, kind: 'sprite', sprite, gx: b.x + b.w, gy: b.y + b.h, b });
+    }
+    for (const gr of s.graves) {
+      list.push({ depth: gr.x + gr.y + 0.9, kind: 'sprite', sprite: graveSprite(gr.id), gx: gr.x + 0.45, gy: gr.y + 0.45 });
+    }
+    for (const w of this.walkers.list.values()) {
+      if (w.alpha <= 0.02) continue;
+      list.push({ depth: w.x + w.y + 0.5, kind: 'walker', id: w.id });
+    }
+    list.sort((a, b) => a.depth - b.depth);
+    this.drawn = list;
+  }
+
+  private drawSprite(sp: Sprite, gx: number, gy: number, alpha = 1) {
+    const scale = this.tw / sp.tilePx;
+    const a = this.toScreen(gx, gy);
+    const x = a.x - sp.ax * scale;
+    const y = a.y - sp.ay * scale;
+    const w = sp.w * scale;
+    const h = sp.h * scale;
+    if (x > this.w || y > this.h || x + w < 0 || y + h < 0) return;
+    const g = this.g;
+    if (alpha < 1) g.globalAlpha = alpha;
+    const pre = this.prescaled(sp, scale);
+    if (pre === sp.img) g.drawImage(pre, x, y, w, h);
+    else {
+      // Pixel-aligned and unscaled: the cheapest possible draw.
+      const c = pre as HTMLCanvasElement;
+      const d = this.dpr;
+      g.drawImage(c, Math.round(x * d) / d, Math.round(y * d) / d, c.width / d, c.height / d);
+    }
+    if (alpha < 1) g.globalAlpha = 1;
+  }
+
+  /**
+   * Shrinking a big sprite every frame is slow. Keep copies already scaled to
+   * the current zoom (in steps of about 6%), drawn at device resolution.
+   */
+  private scaledCache = new WeakMap<Sprite, { key: number; img: HTMLCanvasElement }[]>();
+  private prescaled(sp: Sprite, scale: number): CanvasImageSource {
+    const target = scale * this.dpr;
+    if (target > 0.92) return sp.img; // close to full size: draw directly
+    const key = Math.round(Math.log(target) / Math.log(1.06));
+    let list = this.scaledCache.get(sp);
+    if (!list) { list = []; this.scaledCache.set(sp, list); }
+    let hit = list.find((e) => e.key === key);
+    if (!hit) {
+      const k = 1.06 ** key;
+      let src: CanvasImageSource = sp.img;
+      let sw = sp.w;
+      let sh = sp.h;
+      // Halve in steps for a clean downscale, then finish at the exact size.
+      while (sw * 0.5 > sp.w * k) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(sw / 2));
+        c.height = Math.max(1, Math.round(sh / 2));
+        const cg = c.getContext('2d')!;
+        cg.imageSmoothingQuality = 'high';
+        cg.drawImage(src, 0, 0, c.width, c.height);
+        src = c; sw = c.width; sh = c.height;
+      }
+      const out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(sp.w * k));
+      out.height = Math.max(1, Math.round(sp.h * k));
+      const og = out.getContext('2d')!;
+      og.imageSmoothingQuality = 'high';
+      og.drawImage(src, 0, 0, out.width, out.height);
+      hit = { key, img: out };
+      list.unshift(hit);
+      if (list.length > 3) list.pop();
+    }
+    return hit.img;
+  }
+
+  private drawObjects(s: GameState, now: number, selection: Selection) {
+    const g = this.g;
+    const tw = this.tw;
+    const selB = selection?.kind === 'building' ? selection.id : -1;
+    const selP = selection?.kind === 'person' ? selection.id : -1;
+    for (const d of this.drawn) {
+      if (d.kind === 'sprite') {
+        if (d.b && d.b.id === selB) this.outlineFootprint(d.b);
+        this.drawSprite(d.sprite, d.gx, d.gy, d.alpha);
+        continue;
+      }
+      const w = this.walkers.list.get(d.id)!;
+      const p = s.people[d.id];
+      const c = this.toScreen(w.x, w.y);
+      if (c.x < -20 || c.x > this.w + 20 || c.y < -30 || c.y > this.h + 20) continue;
+      const age = Math.floor((s.day - p.born) / 360);
+      const k = tw / 64 * (age < 8 ? 0.62 : age < 16 ? 0.8 : 1);
+      const bob = w.moving ? Math.abs(Math.sin(now / 110 + d.id)) * 1.4 * k : 0;
+      g.globalAlpha = w.alpha;
+      if (d.id === selP || d.id === this.hoverPerson) {
+        g.strokeStyle = C.hearthGold; g.lineWidth = 2;
+        g.beginPath(); g.ellipse(c.x, c.y, 7 * k, 3.5 * k, 0, 0, Math.PI * 2); g.stroke();
+      }
+      g.fillStyle = 'rgba(62,58,79,0.3)';
+      g.beginPath(); g.ellipse(c.x, c.y, 4 * k, 2 * k, 0, 0, Math.PI * 2); g.fill();
+      // body
+      g.fillStyle = CLOTHES[p.job] ?? CLOTHES.none;
+      g.beginPath();
+      g.moveTo(c.x - 3.2 * k, c.y - 1 * k - bob);
+      g.lineTo(c.x - 2.4 * k, c.y - 9 * k - bob);
+      g.lineTo(c.x + 2.4 * k, c.y - 9 * k - bob);
+      g.lineTo(c.x + 3.2 * k, c.y - 1 * k - bob);
+      g.closePath(); g.fill();
+      // head and hair
+      g.fillStyle = SKIN[p.look.skin % SKIN.length];
+      g.beginPath(); g.arc(c.x, c.y - 11.2 * k - bob, 2.5 * k, 0, Math.PI * 2); g.fill();
+      g.fillStyle = age >= 58 ? '#B9B4AC' : HAIR[p.look.hair % HAIR.length];
+      g.beginPath(); g.arc(c.x - w.facing * 0.4 * k, c.y - 12.2 * k - bob, 2.5 * k, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+      if (p.patron || p.lineage) {
+        g.fillStyle = C.hearthGold;
+        g.beginPath(); g.arc(c.x, c.y - 16.5 * k - bob, 1.3 * k + 0.5, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+  }
+
+  private outlineFootprint(b: Building) {
+    const g = this.g;
+    const pts = [this.toScreen(b.x, b.y), this.toScreen(b.x + b.w, b.y), this.toScreen(b.x + b.w, b.y + b.h), this.toScreen(b.x, b.y + b.h)];
+    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.closePath();
+    g.fillStyle = 'rgba(255,179,71,0.18)'; g.fill();
+    g.strokeStyle = C.hearthGold; g.lineWidth = 2; g.stroke();
+  }
+
+  private drawHearthFire(s: GameState, now: number, running: boolean) {
+    const g = this.g;
+    const c = this.toScreen(s.hearth.x + 0.5, s.hearth.y + 0.5);
+    const k = this.tw / 64;
+    if (running || this.night < 0.9) {
+      const flick = (i: number) => Math.sin(now / (90 + i * 23) + i * 2) * 0.5 + 0.5;
+      for (let i = 0; i < 3; i++) {
+        const fh = (10 + flick(i) * 6 - i * 2) * k * (1 - this.night * 0.7);
+        const fx = c.x + (i - 1) * 3 * k;
+        g.fillStyle = i === 1 ? '#FFD27A' : C.fire;
+        g.beginPath();
+        g.moveTo(fx - 3.5 * k, c.y - 2 * k);
+        g.quadraticCurveTo(fx - 3 * k, c.y - fh * 0.6, fx + (flick(i + 3) - 0.5) * 2 * k, c.y - fh);
+        g.quadraticCurveTo(fx + 3 * k, c.y - fh * 0.6, fx + 3.5 * k, c.y - 2 * k);
+        g.closePath(); g.fill();
+      }
+    } else {
+      g.fillStyle = `rgba(255,120,60,${0.55 + Math.sin(now / 700) * 0.15})`;
+      g.beginPath(); g.ellipse(c.x, c.y - 2 * k, 6 * k, 3 * k, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  private updateSmoke(s: GameState, now: number, dt: number, running: boolean) {
+    const g = this.g;
+    if (now - this.lastSmoke > (running ? 260 : 700)) {
+      this.lastSmoke = now;
+      for (const d of this.drawn) {
+        if (d.kind !== 'sprite' || !d.b || !d.sprite.smoke.length || !d.b.built) continue;
+        if (this.puffs.length > 260) break;
+        if (hashString(`${d.b.id}:${Math.floor(now / 260)}`) % 3) continue;
+        const [sx, sy] = d.sprite.smoke[0];
+        // offset in tiles-at-zoom-1 pixels from the anchor
+        const ox = (sx - d.sprite.ax) / d.sprite.tilePx * BASE_TW;
+        const oy = (sy - d.sprite.ay) / d.sprite.tilePx * BASE_TW;
+        this.puffs.push({ x: d.gx, y: d.gy, z: 0, age: 0, life: 2600 + Math.random() * 1600, drift: ox, size: oy });
+      }
+      // The hearth always smokes a little.
+      if (this.puffs.length < 280) this.puffs.push({ x: s.hearth.x + 0.5, y: s.hearth.y + 0.5, z: 0, age: 0, life: 2400, drift: 0, size: -10 });
+    }
+    const k = this.tw / BASE_TW;
+    g.fillStyle = 'rgba(230,226,220,1)';
+    for (let i = this.puffs.length - 1; i >= 0; i--) {
+      const p = this.puffs[i];
+      p.age += dt;
+      if (p.age > p.life) { this.puffs.splice(i, 1); continue; }
+      const t = p.age / p.life;
+      const base = this.toScreen(p.x, p.y);
+      const x = base.x + (p.drift + t * 18) * k;
+      const y = base.y + (p.size - t * 46) * k;
+      g.globalAlpha = (1 - t) * 0.35;
+      g.beginPath(); g.arc(x, y, Math.max(0.5, (2.5 + t * 7) * k), 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+
+  private drawLighting(s: GameState, now: number) {
+    const n = this.night;
+    if (n <= 0.01) return;
+    const g = this.g;
+    // Dusk and dawn pass through warm amber; full night is a deep blue.
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = mix('#FFE2B8', '#4A5684', Math.min(1, n * 1.15));
+    g.globalAlpha = Math.min(1, n * 1.6);
+    g.fillRect(0, 0, this.w, this.h);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'lighter';
+    const k = this.tw / BASE_TW;
+    const occupied = new Set<number>();
+    for (const p of s.people) if (p.alive && p.home !== undefined && p.away === undefined) occupied.add(p.home);
+    for (const d of this.drawn) {
+      if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length) continue;
+      const home = ['tent', 'hut', 'house', 'bighouse'].includes(d.b.kind);
+      if (home && !occupied.has(d.b.id)) continue;
+      const scale = this.tw / d.sprite.tilePx;
+      const a = this.toScreen(d.gx, d.gy);
+      for (const [lx, ly] of d.sprite.lights) {
+        const x = a.x + (lx - d.sprite.ax) * scale;
+        const y = a.y + (ly - d.sprite.ay) * scale;
+        const flick = 0.85 + Math.sin(now / 300 + lx) * 0.08;
+        const r = 9 * k;
+        const grad = g.createRadialGradient(x, y, 0, x, y, r);
+        grad.addColorStop(0, `rgba(255,196,107,${0.85 * n * flick})`);
+        grad.addColorStop(1, 'rgba(255,196,107,0)');
+        g.fillStyle = grad;
+        g.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    }
+    // The hearth's glow.
+    const c = this.toScreen(s.hearth.x + 0.5, s.hearth.y + 0.5);
+    const r = 60 * k;
+    const grad = g.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+    grad.addColorStop(0, `rgba(255,150,70,${0.45 * n})`);
+    grad.addColorStop(1, 'rgba(255,150,70,0)');
+    g.fillStyle = grad;
+    g.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  private drawSnow(dt: number) {
+    const g = this.g;
+    while (this.flakes.length < 140) {
+      this.flakes.push({ x: Math.random() * this.w, y: Math.random() * this.h, speed: 18 + Math.random() * 30, sway: Math.random() * 6 });
+    }
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const f of this.flakes) {
+      f.y += (f.speed * dt) / 1000;
+      f.x += Math.sin(f.y / 30 + f.sway) * 0.3;
+      if (f.y > this.h) { f.y = -4; f.x = Math.random() * this.w; }
+      g.fillRect(f.x, f.y, 2, 2);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+
+  /** What's under the cursor: a person, a building, or nothing. */
+  pick(s: GameState, sx: number, sy: number): Selection {
+    let best: { id: number; d: number } | null = null;
+    for (const w of this.walkers.list.values()) {
+      if (w.alpha < 0.3) continue;
+      const c = this.toScreen(w.x, w.y);
+      const d = Math.hypot(c.x - sx, c.y - 7 * (this.tw / 64) - sy);
+      const r = Math.max(8, 9 * (this.tw / 64));
+      if (d < r && (!best || d < best.d)) best = { id: w.id, d };
+    }
+    if (best) return { kind: 'person', id: best.id };
+    const t = this.toGrid(sx, sy);
+    const tx = Math.floor(t.x);
+    const ty = Math.floor(t.y);
+    if (tx >= 0 && ty >= 0 && tx < s.map.w && ty < s.map.h) {
+      const o = s.map.occ[ty * s.map.w + tx];
+      if (o) return { kind: 'building', id: o - 1 };
+    }
+    // Tall buildings: test sprite rectangles, nearest first.
+    for (let i = this.drawn.length - 1; i >= 0; i--) {
+      const d = this.drawn[i];
+      if (d.kind !== 'sprite' || !d.b) continue;
+      const sp = d.sprite;
+      const scale = this.tw / sp.tilePx;
+      const a = this.toScreen(d.gx, d.gy);
+      const x = a.x - sp.ax * scale;
+      const y = a.y - sp.ay * scale;
+      if (sx >= x + sp.w * scale * 0.2 && sx <= x + sp.w * scale * 0.8 && sy >= y + sp.h * scale * 0.15 && sy <= a.y) return { kind: 'building', id: d.b.id };
+    }
+    return null;
+  }
+
+  hover(s: GameState, sx: number, sy: number) {
+    const p = this.pick(s, sx, sy);
+    this.hoverPerson = p?.kind === 'person' ? p.id : null;
+    return p;
+  }
+}

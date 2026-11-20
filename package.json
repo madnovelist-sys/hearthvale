@@ -1,0 +1,31 @@
+{
+  "name": "hearthwork",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A city that only lives while you work.",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build-art.mjs && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "simulate": "vite-node scripts/simulate.ts",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "art": "node scripts/build-art.mjs"
+  },
+  "dependencies": {
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.6",
+    "@types/node": "^22.20.5",
+    "sharp": "^0.34.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8",
+    "vite-node": "^3.2.4",
+    "vitest": "^3.2.7"
+  }
+}
