@@ -1,11 +1,25 @@
 {
   "sprites": {
+    "bld_granary_bronze_1x1_v01": {
+      "file": "buildings/bronze/bld_granary_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        142.6,
+        337.8
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
     "bld_home_bronze_1x1_v01": {
       "file": "buildings/bronze/bld_home_bronze_1x1_v01.png",
       "tilePx": 256,
       "anchor": [
-        151,
-        281.3
+        151.7,
+        288.7
       ],
       "footprint": [
         1,
@@ -13,19 +27,131 @@
       ],
       "lights": [
         [
-          75.7,
-          205.9
+          75.5,
+          205.5
         ],
         [
-          198.3,
-          172.1
+          198,
+          171.8
         ],
         [
-          238.2,
-          167.5
+          237.8,
+          167.2
         ]
       ],
       "smoke": []
+    },
+    "bld_home_bronze_1x1_v02": {
+      "file": "buildings/bronze/bld_home_bronze_1x1_v02.png",
+      "tilePx": 256,
+      "anchor": [
+        138.7,
+        264.2
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
+    "bld_home_bronze_1x1_v03": {
+      "file": "buildings/bronze/bld_home_bronze_1x1_v03.png",
+      "tilePx": 256,
+      "anchor": [
+        136.5,
+        291.8
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
+    "bld_home_bronze_1x1_v04": {
+      "file": "buildings/bronze/bld_home_bronze_1x1_v04.png",
+      "tilePx": 256,
+      "anchor": [
+        138.1,
+        274.8
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
+    "bld_home_bronze_1x1_v05": {
+      "file": "buildings/bronze/bld_home_bronze_1x1_v05.png",
+      "tilePx": 256,
+      "anchor": [
+        148.4,
+        287.3
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
+    "bld_kiln_bronze_1x1_v01": {
+      "file": "buildings/bronze/bld_kiln_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        132.8,
+        266.5
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [
+        [
+          241.2,
+          198.8
+        ]
+      ],
+      "smoke": [
+        [
+          219,
+          15.6
+        ]
+      ]
+    },
+    "bld_longhouse_bronze_3x3_v01": {
+      "file": "buildings/bronze/bld_longhouse_bronze_3x3_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        374.8,
+        667.1
+      ],
+      "footprint": [
+        3,
+        3
+      ],
+      "lights": [
+        [
+          259.4,
+          575.1
+        ],
+        [
+          606.2,
+          442.2
+        ],
+        [
+          683.9,
+          419.6
+        ]
+      ],
+      "smoke": [
+        [
+          398.8,
+          121.4
+        ]
+      ]
     }
   }
 }

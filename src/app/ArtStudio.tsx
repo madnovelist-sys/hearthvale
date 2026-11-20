@@ -5,9 +5,9 @@ import { ART_KEY, TREE_KEY, buildingSprite, realSprite, setOverride, type Sprite
 import { C, GRASS_BY_SEASON, mix, shade } from '../render/palette';
 import { store } from '../game/store';
 import { deleteArt, saveArt } from './artStore';
+import { fitBase } from '../render/footprint';
 
 const SLOTS = [...Object.values(ART_KEY), ...TREE_KEY.filter(Boolean)] as string[];
-const TEMPLATE = { width: 1024, diamond: 720, bottom: 112 };
 const TARGET = 256;
 
 export function footprintOf(key: string): number {
@@ -15,12 +15,23 @@ export function footprintOf(key: string): number {
   return m ? Number(m[1]) : 1;
 }
 
-/** Template-aligned image → game sprite: scale to 256 px per tile, trim the margins. */
+/** Any ChatGPT image → game sprite: find the footprint, scale to 256 px per tile, trim the margins. */
 export async function processArt(img: HTMLImageElement | ImageBitmap, tiles: number, keyMagenta: boolean): Promise<{ sprite: Sprite; dataUrl: string }> {
   const W = img.width;
   const H = img.height;
-  const k = W / TEMPLATE.width;
-  const tilePx = (TEMPLATE.diamond * k) / tiles;
+  // Find where the building stands, at full size.
+  const full = document.createElement('canvas');
+  full.width = W; full.height = H;
+  const fg = full.getContext('2d', { willReadFrequently: true })!;
+  fg.drawImage(img, 0, 0);
+  const fd = fg.getImageData(0, 0, W, H).data;
+  const alpha = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    const r = fd[i * 4], gg = fd[i * 4 + 1], b = fd[i * 4 + 2];
+    alpha[i] = keyMagenta && r > 200 && b > 200 && gg < 90 ? 0 : fd[i * 4 + 3];
+  }
+  const fit = fitBase(alpha, W, H, tiles, tiles);
+  const tilePx = fit.tilePx;
   const scale = Math.min(1, TARGET / tilePx);
   const sw = Math.round(W * scale);
   const sh = Math.round(H * scale);
@@ -46,8 +57,8 @@ export async function processArt(img: HTMLImageElement | ImageBitmap, tiles: num
   const out = document.createElement('canvas');
   out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
   out.getContext('2d')!.drawImage(cv, -x0, -y0);
-  const ax = (W / 2) * scale - x0;
-  const ay = (H - TEMPLATE.bottom * k) * scale - y0;
+  const ax = fit.ax * scale - x0;
+  const ay = fit.ay * scale - y0;
   const opaque = px[3] === 255 && px[(sw * sh - 1) * 4 + 3] === 255;
   const sprite: Sprite = { img: out, w: out.width, h: out.height, ax, ay, tilePx: tilePx * scale, lights: [], smoke: [], real: true };
   if (opaque && !keyMagenta) store.toast('This image has no transparent background. Try the magenta option, or ask ChatGPT for a transparent PNG.');
@@ -164,7 +175,7 @@ export function ArtStudio() {
           <b style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>Art test scene</b>
           <button class="btn small" onClick={() => store.setUi({ panel: 'settings' })}>Done</button>
         </div>
-        <p class="hint">Drop in an image made against a footprint template, at its original size (1024 px wide). The gold outline is the footprint; the building's base should sit right on it.</p>
+        <p class="hint">Drop in an image from ChatGPT at its original size. The game finds where the building stands; the gold outline shows the footprint it found. If the base doesn't sit on it, tell Claude and the file can get hand measurements.</p>
         <label>Asset</label>
         <select value={slot} onChange={(e) => { setSlot((e.target as HTMLSelectElement).value); setSprite(null); setFile(null); }}>
           {SLOTS.map((k) => <option key={k} value={k}>{k}</option>)}

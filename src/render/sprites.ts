@@ -70,10 +70,10 @@ export async function loadManifest(base = './art/'): Promise<void> {
   await Promise.all(Object.entries(manifest.sprites).map(async ([key, e]) => {
     try {
       const img = await loadImage(base + e.file);
-      realArt.set(key, {
+      realArt.set(key, withDefaultLights(key, {
         img, w: img.naturalWidth, h: img.naturalHeight, ax: e.anchor[0], ay: e.anchor[1], tilePx: e.tilePx,
         lights: e.lights ?? [], smoke: e.smoke ?? [], real: true,
-      });
+      }));
     } catch { /* missing file: keep the placeholder */ }
   }));
   artChanged();
@@ -90,7 +90,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 /** Art dropped into the in-game test scene overrides files from disk. */
 export function setOverride(key: string, sprite: Sprite | null) {
-  if (sprite) realArt.set(key, sprite);
+  if (sprite) realArt.set(key, withDefaultLights(key, sprite));
   else realArt.delete(key);
   artChanged();
 }
@@ -99,15 +99,40 @@ export function hasRealArt(key: string) {
   return [...realArt.keys()].some((k) => k.startsWith(key));
 }
 
+const variantCache = new Map<string, string[]>();
+onArtChange(() => variantCache.clear());
+
+/** The variant tags (v01, v02, …) that exist for an asset. */
+function variantsOf(base: string): string[] {
+  let list = variantCache.get(base);
+  if (!list) {
+    const tags = new Set<string>();
+    const re = new RegExp(`^${base.replace(/[-]/g, '\\-')}_(v\\d\\d)(?:_|$)`);
+    for (const k of realArt.keys()) { const m = k.match(re); if (m) tags.add(m[1]); }
+    list = [...tags].sort();
+    variantCache.set(base, list);
+  }
+  return list;
+}
+
 export function realSprite(base: string, variant: number, state?: string): Sprite | undefined {
-  const v = `_v0${(variant % 3) + 1}`;
-  const tries = state ? [`${base}${v}_${state}`, `${base}_v01_${state}`] : [];
-  tries.push(`${base}${v}`, `${base}_v01`);
+  const variants = variantsOf(base);
+  if (!variants.length) return undefined;
+  const v = variants[variant % variants.length];
+  const tries = state ? [`${base}_${v}_${state}`, `${base}_${variants[0]}_${state}`] : [];
+  tries.push(`${base}_${v}`, `${base}_${variants[0]}`);
   for (const k of tries) {
     const s = realArt.get(k);
     if (s) return s;
   }
   return undefined;
+}
+
+/** Homes without marked windows still glow at the door at night. */
+function withDefaultLights(key: string, s: Sprite): Sprite {
+  if (s.lights.length || !/^bld_(home|hut|house|tent)/.test(key)) return s;
+  const t = s.tilePx;
+  return { ...s, lights: [[s.ax - t * 0.24, s.ay - t * 0.12 - t * 0.28]] };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 # Art
 
-Put art from ChatGPT here, exactly as it was made: the full-size image drawn against a footprint template (1024 × 1024, or 1024 × 1536 for the tall templates), with a transparent background. **Don't resize, crop or trim it.** `npm run art` does that, and writes game-ready sprites plus a manifest to `public/art/`. The game finds them by name.
+Put art from ChatGPT here, exactly as it was made: full size, transparent background. **Don't resize, crop or trim it.** `npm run art` does that, and writes game-ready sprites plus a manifest to `public/art/`. The game finds them by name.
+
+Images made against a footprint template line up exactly. Others work too: the art step finds where the building stands from its outline. Check what it found with `npm run art -- --check some-folder`, which saves each image with its footprint drawn on. When an image isn't drawn in true 2:1 isometric (ChatGPT sometimes draws one side flatter), give it hand measurements in a sidecar file (below).
 
 ## Names
 
@@ -20,7 +22,7 @@ Up to three variants (`v01`–`v03`) of anything are used at random. States the 
 | --- | --- |
 | Hide tent | `bld_tent_bronze_1x1` |
 | Round hut | `bld_hut-round_bronze_1x1` |
-| Mudbrick home | `bld_home_bronze_1x1` |
+| Mudbrick home (any number of variants) | `bld_home_bronze_1x1` |
 | Family house (2×2) | `bld_house-large_bronze_2x2` |
 | Gathering hall (3×3) | `bld_longhouse_bronze_3x3` |
 | Granary | `bld_granary_bronze_1x1` |
@@ -37,11 +39,13 @@ Up to three variants (`v01`–`v03`) of anything are used at random. States the 
 
 ## Night lights and smoke
 
-To make windows glow at night or a chimney smoke, add a JSON file with the same name next to the image, with points in the image's own pixels:
+To make windows glow at night or a chimney smoke, or to set the footprint by hand, add a JSON file with the same name next to the image, with points in the image's own pixels:
 
 ```json
-{ "lights": [[300, 700], [645, 605]], "smoke": [[512, 210]] }
+{ "lights": [[300, 700], [645, 605]], "smoke": [[512, 210]], "anchorPx": [603, 1142], "tilePx": 395 }
 ```
+
+`anchorPx` is the base's lowest corner and `tilePx` is how many pixels wide one tile is. Homes without `lights` get a glow at the door.
 
 ## Trying art before committing it
 

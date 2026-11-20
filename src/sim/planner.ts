@@ -60,7 +60,7 @@ export function addBuilding(
     built: opts.built ?? BUILD_WORK[kind] === 0,
     progress: 0,
     required: BUILD_WORK[kind],
-    variant: int(s.rng, 0, 2),
+    variant: int(s.rng, 0, 59), // picks among however many art variants exist
     founded: s.day,
     forPeople: opts.forPeople,
     replaces: opts.replaces,

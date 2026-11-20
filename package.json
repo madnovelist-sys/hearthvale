@@ -6,7 +6,7 @@
   "description": "A city that only lives while you work.",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/build-art.mjs && tsc --noEmit && vite build",
+    "build": "vite-node scripts/build-art.ts && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -14,7 +14,7 @@
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
-    "art": "node scripts/build-art.mjs"
+    "art": "vite-node scripts/build-art.ts --"
   },
   "dependencies": {
     "preact": "^10.29.8"

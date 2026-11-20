@@ -1,0 +1,7 @@
+{
+  "note": "Not drawn in true 2:1 isometric (the door end is flatter), so the footprint is set by hand: anchored at the front corner post, sized by the long side.",
+  "anchorPx": [603, 1142],
+  "tilePx": 395,
+  "lights": [[425, 1000], [960, 795], [1080, 760]],
+  "smoke": [[640, 300]]
+}
