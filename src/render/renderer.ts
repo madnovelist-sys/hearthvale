@@ -4,7 +4,7 @@ import { TERRAIN, TREE, type Building, type GameState } from '../sim/types';
 import { seasonIndex, seasonProgress } from '../sim/world';
 import { hashString } from '../sim/rng';
 import { C, CLOTHES, GRASS_BY_SEASON, HAIR, SKIN, mix, shade } from './palette';
-import { buildingSprite, graveSprite, scaffoldSprite, treeSprite, type Sprite } from './sprites';
+import { buildingSprite, graveSprite, hasBuildingArt, scaffoldSprite, treeSprite, type Sprite } from './sprites';
 import { Walkers } from './walkers';
 import { Fauna, drawAnimal, drawBirds } from './fauna';
 import type { Selection } from '../game/store';
@@ -487,6 +487,21 @@ export class Renderer {
     const g = this.g;
     const c = this.toScreen(s.hearth.x + 0.5, s.hearth.y + 0.5);
     const k = this.tw / 64;
+    if (hasBuildingArt('hearth')) {
+      // The painted fire is already lit; make it flicker while time runs.
+      if (!running) return;
+      const f = Math.sin(now / 110) * 0.5 + Math.sin(now / 47 + 1) * 0.3 + 0.5;
+      const r = 14 * k;
+      const fy = c.y - 4 * k;
+      const grad = g.createRadialGradient(c.x, fy, 0, c.x, fy, r);
+      grad.addColorStop(0, `rgba(255,190,90,${0.18 + f * 0.14})`);
+      grad.addColorStop(1, 'rgba(255,190,90,0)');
+      g.globalCompositeOperation = 'lighter';
+      g.fillStyle = grad;
+      g.fillRect(c.x - r, fy - r, r * 2, r * 2);
+      g.globalCompositeOperation = 'source-over';
+      return;
+    }
     if (running || this.night < 0.9) {
       const flick = (i: number) => Math.sin(now / (90 + i * 23) + i * 2) * 0.5 + 0.5;
       for (let i = 0; i < 3; i++) {
@@ -514,7 +529,7 @@ export class Renderer {
           // Burning buildings pour out smoke.
           for (let i = 0; i < 3; i++) this.puffs.push({ x: d.b.x + d.b.w / 2, y: d.b.y + d.b.h / 2, z: 0, age: 0, life: 3000 + i * 500, drift: (i - 1) * 6, size: -20 - i * 6 });
         }
-        if (d.kind !== 'sprite' || !d.b || !d.sprite.smoke.length || !d.b.built || d.b.burned) continue;
+        if (d.kind !== 'sprite' || !d.b || !d.sprite.smoke.length || !d.b.built || d.b.burned || d.b.kind === 'hearth') continue;
         if (this.puffs.length > 260) break;
         if (hashString(`${d.b.id}:${Math.floor(now / 260)}`) % 3) continue;
         const [sx, sy] = d.sprite.smoke[0];
@@ -523,8 +538,18 @@ export class Renderer {
         const oy = (sy - d.sprite.ay) / d.sprite.tilePx * BASE_TW * (d.fit ?? 1);
         this.puffs.push({ x: d.gx, y: d.gy, z: 0, age: 0, life: 2600 + Math.random() * 1600, drift: ox, size: oy });
       }
-      // The hearth always smokes a little.
-      if (this.puffs.length < 280) this.puffs.push({ x: s.hearth.x + 0.5, y: s.hearth.y + 0.5, z: 0, age: 0, life: 2400, drift: 0, size: -10 });
+      // The hearth always smokes a little, from the top of its flames.
+      if (this.puffs.length < 280) {
+        const h = this.drawn.find((d) => d.kind === 'sprite' && d.b?.kind === 'hearth');
+        if (h && h.kind === 'sprite' && h.sprite.smoke.length) {
+          const [sx, sy] = h.sprite.smoke[0];
+          const drift = (sx - h.sprite.ax) / h.sprite.tilePx * BASE_TW * (h.fit ?? 1);
+          const size = (sy - h.sprite.ay) / h.sprite.tilePx * BASE_TW * (h.fit ?? 1);
+          this.puffs.push({ x: h.gx, y: h.gy, z: 0, age: 0, life: 2400, drift, size });
+        } else {
+          this.puffs.push({ x: s.hearth.x + 0.5, y: s.hearth.y + 0.5, z: 0, age: 0, life: 2400, drift: 0, size: -10 });
+        }
+      }
     }
     const k = this.tw / BASE_TW;
     g.fillStyle = 'rgba(230,226,220,1)';

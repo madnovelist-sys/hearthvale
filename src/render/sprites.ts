@@ -38,8 +38,8 @@ export const ART_KEY: Partial<Record<BuildingKind, string>> = {
   stall: 'bld_stall_bronze_1x1',
   graveyard: 'bld_burial_bronze_3x3',
   pen: 'bld_pen_bronze_2x2',
-  hearth: 'lnd_hearth_any_1x1',
-  stone: 'lnd_old-stone_any_1x1',
+  hearth: 'lmk_hearth_bronze_1x1',
+  stone: 'lmk_old-stone_bronze_1x1',
 };
 
 export const TREE_KEY = ['', 'nat_broadleaf_any_1x1', 'nat_pine_any_1x1', 'nat_fruit_any_1x1', 'nat_bush_any_1x1', 'nat_rock_any_1x1', 'nat_stump_any_1x1'];
@@ -569,6 +569,12 @@ function placeholderBuilding(kind: BuildingKind, variant: number): Sprite {
       return c.sprite();
     }
   }
+}
+
+/** Whether a kind of building has real art (rather than a placeholder). */
+export function hasBuildingArt(kind: BuildingKind) {
+  const key = ART_KEY[kind];
+  return !!key && realSprite(key, 0) !== undefined;
 }
 
 export function buildingSprite(kind: BuildingKind, variant: number, winter: boolean): Sprite {

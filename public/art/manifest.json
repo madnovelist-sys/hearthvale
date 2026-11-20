@@ -152,6 +152,39 @@
           121.4
         ]
       ]
+    },
+    "lmk_hearth_bronze_1x1_v01": {
+      "file": "landmarks/lmk_hearth_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        133.9,
+        198.2
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": [
+        [
+          134.8,
+          57.8
+        ]
+      ]
+    },
+    "lmk_old-stone_bronze_1x1_v01": {
+      "file": "landmarks/lmk_old-stone_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        132.2,
+        409.3
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
     }
   }
 }
