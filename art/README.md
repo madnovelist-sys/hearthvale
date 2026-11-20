@@ -23,10 +23,10 @@ Up to three variants (`v01`–`v03`) of anything are used at random. States the 
 | Hide tent | `bld_tent_bronze_1x1` |
 | Round hut | `bld_hut-round_bronze_1x1` |
 | Mudbrick home (any number of variants) | `bld_home_bronze_1x1` |
-| Family house (2×2) | `bld_house-large_bronze_2x2` |
+| Family house (2×2, built by big families) | `bld_house-large_bronze_2x2` |
 | Gathering hall (3×3) | `bld_longhouse_bronze_3x3` |
-| Granary | `bld_granary_bronze_1x1` |
-| Potter's kiln | `bld_kiln_bronze_1x1` |
+| Granary (2×2) | `bld_granary_bronze_2x2` |
+| Potter's kiln (2×2) | `bld_kiln_bronze_2x2` |
 | Bronze furnace | `bld_furnace_bronze_1x1` |
 | Stone circle (2×2) | `bld_shrine_bronze_2x2` |
 | Well | `bld_well_bronze_1x1` |

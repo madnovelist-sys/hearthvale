@@ -16,7 +16,7 @@ interface Puff { x: number; y: number; z: number; age: number; life: number; dri
 interface Flake { x: number; y: number; speed: number; sway: number }
 
 type Drawable =
-  | { depth: number; kind: 'sprite'; sprite: Sprite; gx: number; gy: number; b?: Building; alpha?: number }
+  | { depth: number; kind: 'sprite'; sprite: Sprite; gx: number; gy: number; b?: Building; alpha?: number; fit?: number }
   | { depth: number; kind: 'walker'; id: number };
 
 export class Renderer {
@@ -285,7 +285,9 @@ export class Renderer {
       if (b.x + b.w < r.x0 || b.x > r.x1 + 1 || b.y + b.h < r.y0 || b.y > r.y1 + 1) continue;
       const sprite = b.built ? buildingSprite(b.kind, b.variant, winter) : scaffoldSprite(b.w, b.h, b.progress / Math.max(1, b.required));
       const depth = b.kind === 'graveyard' ? b.x + b.y + 0.5 : b.x + b.w + b.y + b.h;
-      list.push({ depth, kind: 'sprite', sprite, gx: b.x + b.w, gy: b.y + b.h, b });
+      // Art made for a different footprint (e.g. a 2×2 granary in an older city's 1×1 spot) is scaled to fit.
+      const fit = sprite.tiles && sprite.tiles !== b.w ? b.w / sprite.tiles : undefined;
+      list.push({ depth, kind: 'sprite', sprite, gx: b.x + b.w, gy: b.y + b.h, b, fit });
     }
     for (const gr of s.graves) {
       list.push({ depth: gr.x + gr.y + 0.9, kind: 'sprite', sprite: graveSprite(gr.id), gx: gr.x + 0.45, gy: gr.y + 0.45 });
@@ -298,8 +300,8 @@ export class Renderer {
     this.drawn = list;
   }
 
-  private drawSprite(sp: Sprite, gx: number, gy: number, alpha = 1) {
-    const scale = this.tw / sp.tilePx;
+  private drawSprite(sp: Sprite, gx: number, gy: number, alpha = 1, fit = 1) {
+    const scale = (this.tw / sp.tilePx) * fit;
     const a = this.toScreen(gx, gy);
     const x = a.x - sp.ax * scale;
     const y = a.y - sp.ay * scale;
@@ -367,7 +369,7 @@ export class Renderer {
     for (const d of this.drawn) {
       if (d.kind === 'sprite') {
         if (d.b && d.b.id === selB) this.outlineFootprint(d.b);
-        this.drawSprite(d.sprite, d.gx, d.gy, d.alpha);
+        this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
         continue;
       }
       const w = this.walkers.list.get(d.id)!;
@@ -445,8 +447,8 @@ export class Renderer {
         if (hashString(`${d.b.id}:${Math.floor(now / 260)}`) % 3) continue;
         const [sx, sy] = d.sprite.smoke[0];
         // offset in tiles-at-zoom-1 pixels from the anchor
-        const ox = (sx - d.sprite.ax) / d.sprite.tilePx * BASE_TW;
-        const oy = (sy - d.sprite.ay) / d.sprite.tilePx * BASE_TW;
+        const ox = (sx - d.sprite.ax) / d.sprite.tilePx * BASE_TW * (d.fit ?? 1);
+        const oy = (sy - d.sprite.ay) / d.sprite.tilePx * BASE_TW * (d.fit ?? 1);
         this.puffs.push({ x: d.gx, y: d.gy, z: 0, age: 0, life: 2600 + Math.random() * 1600, drift: ox, size: oy });
       }
       // The hearth always smokes a little.
@@ -486,7 +488,7 @@ export class Renderer {
       if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length) continue;
       const home = ['tent', 'hut', 'house', 'bighouse'].includes(d.b.kind);
       if (home && !occupied.has(d.b.id)) continue;
-      const scale = this.tw / d.sprite.tilePx;
+      const scale = (this.tw / d.sprite.tilePx) * (d.fit ?? 1);
       const a = this.toScreen(d.gx, d.gy);
       for (const [lx, ly] of d.sprite.lights) {
         const x = a.x + (lx - d.sprite.ax) * scale;

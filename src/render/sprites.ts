@@ -13,6 +13,8 @@ export interface Sprite {
   ay: number;
   /** Image pixels per tile width. */
   tilePx: number;
+  /** Footprint width in tiles the image was made for. */
+  tiles?: number;
   /** Window and door glow points at night, in image pixels. */
   lights: [number, number][];
   /** Chimney points, in image pixels. */
@@ -27,8 +29,8 @@ export const ART_KEY: Partial<Record<BuildingKind, string>> = {
   house: 'bld_home_bronze_1x1',
   bighouse: 'bld_house-large_bronze_2x2',
   hall: 'bld_longhouse_bronze_3x3',
-  granary: 'bld_granary_bronze_1x1',
-  kiln: 'bld_kiln_bronze_1x1',
+  granary: 'bld_granary_bronze_2x2',
+  kiln: 'bld_kiln_bronze_2x2',
   furnace: 'bld_furnace_bronze_1x1',
   shrine: 'bld_shrine_bronze_2x2',
   well: 'bld_well_bronze_1x1',
@@ -72,7 +74,7 @@ export async function loadManifest(base = './art/'): Promise<void> {
       const img = await loadImage(base + e.file);
       realArt.set(key, withDefaultLights(key, {
         img, w: img.naturalWidth, h: img.naturalHeight, ax: e.anchor[0], ay: e.anchor[1], tilePx: e.tilePx,
-        lights: e.lights ?? [], smoke: e.smoke ?? [], real: true,
+        tiles: e.footprint?.[0], lights: e.lights ?? [], smoke: e.smoke ?? [], real: true,
       }));
     } catch { /* missing file: keep the placeholder */ }
   }));
@@ -172,7 +174,7 @@ class Canvas {
   }
   sprite(lights: Pt[] = [], smoke: Pt[] = []): Sprite {
     return {
-      img: this.cv, w: this.cv.width, h: this.cv.height, ax: this.ax, ay: this.ay, tilePx: T,
+      img: this.cv, w: this.cv.width, h: this.cv.height, ax: this.ax, ay: this.ay, tilePx: T, tiles: this.fw,
       lights: lights.map((p) => [p.x, p.y]), smoke: smoke.map((p) => [p.x, p.y]),
     };
   }

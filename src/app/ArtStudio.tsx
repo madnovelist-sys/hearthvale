@@ -60,7 +60,7 @@ export async function processArt(img: HTMLImageElement | ImageBitmap, tiles: num
   const ax = fit.ax * scale - x0;
   const ay = fit.ay * scale - y0;
   const opaque = px[3] === 255 && px[(sw * sh - 1) * 4 + 3] === 255;
-  const sprite: Sprite = { img: out, w: out.width, h: out.height, ax, ay, tilePx: tilePx * scale, lights: [], smoke: [], real: true };
+  const sprite: Sprite = { img: out, w: out.width, h: out.height, ax, ay, tilePx: tilePx * scale, tiles, lights: [], smoke: [], real: true };
   if (opaque && !keyMagenta) store.toast('This image has no transparent background. Try the magenta option, or ask ChatGPT for a transparent PNG.');
   return { sprite, dataUrl: out.toDataURL('image/png') };
 }

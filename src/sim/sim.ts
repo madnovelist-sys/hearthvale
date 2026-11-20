@@ -50,9 +50,13 @@ export function foundSettlement(opts: FoundingOptions): GameState {
     goals: { ...(opts.goals ?? DEFAULT_GOALS) },
     settings: { ...(opts.settings ?? DEFAULT_SETTINGS) },
     focus: { running: null, carryMs: 0, sparkMs: 0, sparkWords: 0, totalMs: 0, days: {}, sessions: [] },
-    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0 },
+    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0, faith: 0, petition: 0, fortune: 0 },
     flags: { relics: 0, knowledge: 0 },
     lateReturns: [],
+    laws: [],
+    faiths: [],
+    petitions: [],
+    fortunes: [],
   };
   const r = s.rng;
 

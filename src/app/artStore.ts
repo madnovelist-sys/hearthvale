@@ -2,7 +2,7 @@
 // loaded on startup, so it shows in the city until real files replace it.
 import { setOverride, type Sprite } from '../render/sprites';
 
-interface StoredArt { dataUrl: string; ax: number; ay: number; tilePx: number }
+interface StoredArt { dataUrl: string; ax: number; ay: number; tilePx: number; tiles?: number }
 
 function db(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -24,7 +24,7 @@ async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReq
 }
 
 export async function saveArt(key: string, dataUrl: string, s: Sprite) {
-  try { await tx('readwrite', (st) => st.put({ dataUrl, ax: s.ax, ay: s.ay, tilePx: s.tilePx } satisfies StoredArt, key)); } catch { /* storage unavailable */ }
+  try { await tx('readwrite', (st) => st.put({ dataUrl, ax: s.ax, ay: s.ay, tilePx: s.tilePx, tiles: s.tiles } satisfies StoredArt, key)); } catch { /* storage unavailable */ }
 }
 
 export async function deleteArt(key: string) {
@@ -40,7 +40,7 @@ export async function loadStoredArt() {
       const img = new Image();
       img.src = a.dataUrl;
       await img.decode();
-      setOverride(String(key), { img, w: img.naturalWidth, h: img.naturalHeight, ax: a.ax, ay: a.ay, tilePx: a.tilePx, lights: [], smoke: [], real: true });
+      setOverride(String(key), { img, w: img.naturalWidth, h: img.naturalHeight, ax: a.ax, ay: a.ay, tilePx: a.tilePx, tiles: a.tiles, lights: [], smoke: [], real: true });
     }
   } catch { /* nothing stored */ }
 }

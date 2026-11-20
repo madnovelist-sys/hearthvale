@@ -96,6 +96,13 @@ function migrate(s: GameState): GameState {
   s.arrivals ??= [];
   s.goals.track ??= 'time';
   s.settings.awayMinutes ??= 15;
+  s.laws ??= [];
+  s.faiths ??= [];
+  s.petitions ??= [];
+  s.fortunes ??= [];
+  s.nextId.faith ??= 0;
+  s.nextId.petition ??= 0;
+  s.nextId.fortune ??= 0;
   s.settings.notify ??= false;
   return s;
 }

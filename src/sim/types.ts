@@ -85,6 +85,8 @@ export interface Person {
   followed?: boolean;
   look: Look;
   memories: number[];
+  /** Faith id, if they hold one. */
+  faith?: number;
 }
 
 export type BuildingKind =
@@ -112,6 +114,13 @@ export interface Building {
   /** Building this one replaces when finished (an upgrade in place). */
   replaces?: number;
   removed?: boolean;
+  /** Burning until this day. */
+  burning?: number;
+  /** A burned-out shell. */
+  burned?: boolean;
+  /** Businesses have names and owners. */
+  name?: string;
+  owner?: number;
 }
 
 export interface Grave { id: number; x: number; y: number; person: number; day: number }
@@ -158,7 +167,22 @@ export type EntryKind =
   | 'founding' | 'arrival' | 'birth' | 'death' | 'wedding' | 'courtship' | 'parting'
   | 'comingOfAge' | 'illness' | 'recovery' | 'injury' | 'hunger' | 'harvest' | 'build'
   | 'departure' | 'return' | 'lost' | 'omen' | 'stage' | 'patron' | 'dream' | 'orphan'
-  | 'season' | 'naming';
+  | 'season' | 'naming' | 'leader' | 'law' | 'faith' | 'plague' | 'fire' | 'petition' | 'fortune' | 'business';
+
+export type LawId = 'share-harvest' | 'open-gates' | 'fever-huts' | 'feast-days' | 'work-dawn' | 'no-blades' | 'elders-voice' | 'tithe';
+export interface Law { id: LawId; since: number; by: number; patron?: boolean }
+export interface Leader { person: number; since: number }
+
+export type TenetId = 'hearth' | 'ancestors' | 'river' | 'peace' | 'feasting' | 'austerity' | 'comet' | 'relics';
+export interface Faith { id: number; name: string; founder: number; founded: number; tenets: TenetId[]; season: number; parent?: number; gone?: boolean }
+
+export type PetitionKind = 'heal' | 'return' | 'child' | 'harvest' | 'plague' | 'fire';
+export interface Petition { id: number; day: number; from: number; kind: PetitionKind; target?: number; text: string; cost: number; expires: number }
+
+export interface Plague { name: string; since: number; lastCase: number; cases: number; deaths: number }
+
+export type FortuneId = 'master' | 'healer' | 'treasure' | 'harvest' | 'builder' | 'feast' | 'prophet';
+export interface FortuneOffer { id: number; options: FortuneId[] }
 
 export interface Entry {
   id: number;
@@ -270,7 +294,7 @@ export interface GameState {
   goals: Goals;
   settings: Settings;
   focus: Focus;
-  nextId: { person: number; building: number; entry: number; quest: number; grave: number; party: number };
+  nextId: { person: number; building: number; entry: number; quest: number; grave: number; party: number; faith: number; petition: number; fortune: number };
   flags: {
     hungerSince?: number;
     coldSince?: number;
@@ -282,6 +306,22 @@ export interface GameState {
     lastDeparture?: number;
     /** The last few kinds of everyday moment, so they don't repeat. */
     recentMoments?: number[];
+    /** Things that might inspire a new faith: omens, relics, answered prayers. */
+    faithSeeds?: number;
+    /** What inspired the most recent seed. */
+    faithSeedKind?: TenetId;
+    /** A travelling healer's lessons last until this day. */
+    healerUntil?: number;
+    /** A Fortune promised a bumper harvest. */
+    harvestBoost?: boolean;
+    /** A Fortune made the next Raise a Prophet free. */
+    freeProphet?: boolean;
   };
   lateReturns: { person: number; day: number }[];
+  leader?: Leader;
+  laws: Law[];
+  faiths: Faith[];
+  petitions: Petition[];
+  plague?: Plague;
+  fortunes: FortuneOffer[];
 }

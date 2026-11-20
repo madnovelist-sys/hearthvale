@@ -9,7 +9,7 @@ import { ageOf, centerOf, isDwelling, population, present, residents, tileIndex 
 
 export const FOOTPRINT: Record<BuildingKind, [number, number]> = {
   hearth: [1, 1], stone: [1, 1], tent: [1, 1], hut: [1, 1], house: [1, 1], bighouse: [2, 2], hall: [3, 3],
-  granary: [1, 1], kiln: [1, 1], furnace: [1, 1], shrine: [2, 2], well: [1, 1], dock: [1, 1], stall: [1, 1],
+  granary: [2, 2], kiln: [2, 2], furnace: [1, 1], shrine: [2, 2], well: [1, 1], dock: [1, 1], stall: [1, 1],
   field: [2, 2], graveyard: [3, 3],
 };
 
@@ -319,6 +319,27 @@ function housing(s: GameState) {
     const kind: BuildingKind = s.stage === 'settlement' && rand(s.rng) < 0.5 ? 'hut' : 'house';
     const b = queueBuilding(s, kind, { forPeople: [p.id, spouse.id] });
     if (b) reserved.add(p.id);
+  }
+
+  // Big families (six or more under one roof) build a family house, once it's a village.
+  if (s.stage !== 'settlement' && pending < 3 && !projects(s).some((b) => b.kind === 'bighouse')) {
+    for (const [homeId, list] of byHome) {
+      const home = s.buildings[homeId];
+      if (!home || home.kind === 'bighouse' || list.length < 6) continue;
+      const head = list.find((p) => p.spouse !== undefined && list.some((q) => q.id === p.spouse) && !reserved.has(p.id));
+      if (!head || s.stores.wood < 60) continue;
+      if (queueBuilding(s, 'bighouse', { forPeople: [head.id, head.spouse!] })) break;
+    }
+  }
+
+  // Homeless people (after a fire, or a return from far away) get a tent.
+  for (const p of people) {
+    if (p.home !== undefined || ageOf(s, p) < 16) continue;
+    const site = findSite(s, 'tent');
+    if (!site) break;
+    const tent = addBuilding(s, 'tent', site.x, site.y);
+    p.home = tent.id;
+    for (const c of p.children) { const k = s.people[c]; if (k?.alive && k.home === undefined) k.home = tent.id; }
   }
 
   // People in tents get a proper hut built where the tent stands.
