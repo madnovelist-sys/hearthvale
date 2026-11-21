@@ -8,8 +8,9 @@ import { enactLaw, foundFaith, hasLaw, opinion, repealLaw } from './society';
 import type { LawId, TenetId } from './types';
 import { DAYS_PER_YEAR, type GameState, type Party, type PersonDraft, type QuestKind } from './types';
 import { ageOf, yearOf } from './world';
+import { nextCost } from './ages';
 
-export type ActId = 'bless' | 'name' | 'settler' | 'quest' | 'law' | 'prophet';
+export type ActId = 'bless' | 'name' | 'settler' | 'quest' | 'law' | 'prophet' | 'inspire';
 
 export const ACTS: { id: ActId; label: string; cost: number; blurb: string }[] = [
   { id: 'bless', label: 'Bless', cost: 1, blurb: 'A year of good luck and health for one person.' },
@@ -18,6 +19,7 @@ export const ACTS: { id: ActId; label: string; cost: number; blurb: string }[] =
   { id: 'quest', label: 'Send on a Quest', cost: 3, blurb: 'Send someone (and companions) out into the world.' },
   { id: 'law', label: 'Whisper a Law', cost: 5, blurb: "Put a law in the leader's head, or talk them out of one. Costs more if they'd hate it." },
   { id: 'prophet', label: 'Raise a Prophet', cost: 8, blurb: 'Someone wakes certain of something, and founds a faith you shape.' },
+  { id: 'inspire', label: 'Inspire', cost: 4, blurb: "Give someone an idea that won't let go. The next discovery is likely to come from their work, and sooner." },
 ];
 
 export const actCost = (id: ActId) => ACTS.find((a) => a.id === id)!.cost;
@@ -41,6 +43,20 @@ export function bless(s: GameState, personId: number): ActResult {
   p.mood += 15;
   if (p.sick) p.sick.severity *= 0.5;
   log(s, 'patron', `A warmth settled over ${P(p.id)}. Nobody could say why, but ${p.sex === 'f' ? 'she' : 'he'} smiled more that year.`, [p.id], 2);
+  return { ok: true };
+}
+
+export function inspire(s: GameState, personId: number): ActResult {
+  const p = s.people[personId];
+  if (!p || !p.alive) return { ok: false, reason: 'They are no longer living.' };
+  if (p.away !== undefined) return { ok: false, reason: 'They are far away.' };
+  if (ageOf(s, p) < 16) return { ok: false, reason: 'They are too young.' };
+  const paid = spend(s, 'inspire');
+  if (!paid.ok) return paid;
+  s.lore.nudge = { person: p.id, until: s.day + 3 * DAYS_PER_YEAR };
+  s.lore.points += nextCost(s) * 0.35;
+  s.lore.last = Math.min(s.lore.last ?? -999, s.day - 45);
+  log(s, 'dream', `${P(p.id)} woke with an idea that would not let go, and could talk of nothing else for weeks.`, [p.id], 3);
   return { ok: true };
 }
 

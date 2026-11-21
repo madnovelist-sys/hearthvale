@@ -3,7 +3,7 @@
 // from ChatGPT and the code-drawn placeholders work the same way, so art can
 // replace a placeholder one asset at a time.
 import { C, mix, shade } from './palette';
-import type { BuildingKind } from '../sim/types';
+import type { BuildingKind, Era } from '../sim/types';
 
 export interface Sprite {
   img: CanvasImageSource;
@@ -39,6 +39,12 @@ export const ART_KEY: Partial<Record<BuildingKind, string>> = {
   stall: 'bld_stall_bronze_1x1',
   graveyard: 'bld_burial_bronze_3x3',
   pen: 'bld_pen_bronze_2x2',
+  townhouse: 'bld_townhouse_bronze_1x1',
+  alehouse: 'bld_alehouse_bronze_2x2',
+  healer: 'bld_healer-hut_bronze_1x1',
+  scribes: 'bld_scribe-house_bronze_2x2',
+  temple: 'bld_temple_bronze_3x3',
+  guildhall: 'bld_guildhall_bronze_2x2',
   hearth: 'lmk_hearth_bronze_1x1',
   stone: 'lmk_old-stone_bronze_1x1',
 };
@@ -134,7 +140,7 @@ export function realSprite(base: string, variant: number, state?: string): Sprit
 
 /** Homes without marked windows still glow at the door at night. */
 function withDefaultLights(key: string, s: Sprite): Sprite {
-  if (s.lights.length || !/^bld_(home|hut|house|hide-tent|tent|lean-to)/.test(key)) return s;
+  if (s.lights.length || !/^bld_(home|hut|house|hide-tent|tent|lean-to|townhouse)/.test(key)) return s;
   const t = s.tilePx;
   return { ...s, lights: [[s.ax - t * 0.24, s.ay - t * 0.12 - t * 0.28]] };
 }
@@ -359,6 +365,116 @@ function placeholderBuilding(kind: BuildingKind, variant: number): Sprite {
       const roof = [C.thatch, shade(C.thatch, 0.06), shade(C.thatch, -0.04)][v];
       const apex = pyramidRoof(c, inset - 0.08, h - 4, 44, roof);
       return c.sprite([d, w1, w2], v === 2 ? [{ x: apex.x + 10, y: apex.y + 14 }] : []);
+    }
+    case 'townhouse': {
+      // Two storeys of mudbrick, a ladder up the side, and a flat roof with a parapet and awning.
+      const c = new Canvas(1, 1, 150);
+      const inset = 0.1;
+      const h = [78, 84, 74][v];
+      box(c, inset, h, C.mudbrick, { base: C.redClay, baseH: 12, top: shade(C.mudbrick, 0.14) });
+      // a band between the floors
+      c.poly([c.pt(inset, 1 - inset, h * 0.5), c.pt(1 - inset, 1 - inset, h * 0.5), c.pt(1 - inset, 1 - inset, h * 0.5 + 4), c.pt(inset, 1 - inset, h * 0.5 + 4)], shade(C.timber, 0.1));
+      const d = door(c, 0.35, inset);
+      const w1 = rightWindow(c, 0.3, inset, h * 0.35);
+      const w2 = rightWindow(c, 0.3, inset, h * 0.8);
+      const w3 = rightWindow(c, 0.65, inset, h * 0.8);
+      // parapet
+      const P2 = (gx: number, gy: number) => c.pt(gx, gy, h + 6);
+      c.poly([c.pt(inset, 1 - inset, h), c.pt(1 - inset, 1 - inset, h), P2(1 - inset, 1 - inset), P2(inset, 1 - inset)], shade(C.mudbrick, 0.02), edge(C.mudbrick));
+      c.poly([c.pt(1 - inset, 1 - inset, h), c.pt(1 - inset, inset, h), P2(1 - inset, inset), P2(1 - inset, 1 - inset)], shade(C.mudbrick, -0.12), edge(C.mudbrick));
+      // a reed awning on the roof
+      const g = c.g;
+      g.strokeStyle = C.timber; g.lineWidth = 2.5;
+      for (const [x, y] of [[0.3, 0.55], [0.6, 0.55]]) { const a = c.pt(x, y, h), b = c.pt(x, y, h + 22); g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); }
+      c.poly([c.pt(0.2, 0.62, h + 22), c.pt(0.7, 0.62, h + 22), c.pt(0.7, 0.3, h + 26), c.pt(0.2, 0.3, h + 26)], [C.thatch, C.redClay, '#C98B3A'][v], edge(C.thatch));
+      return c.sprite([d, w1, w2, w3]);
+    }
+    case 'alehouse': {
+      const c = new Canvas(2, 2, 150);
+      box(c, 0.2, 50, C.mudbrick, { base: C.redClay, baseH: 12 });
+      const d = door(c, 0.75, 0.2, 0.26, 30);
+      const w1 = rightWindow(c, 1.2, 0.2, 30, 0.16);
+      const w2 = rightWindow(c, 0.6, 0.2, 30, 0.16);
+      pyramidRoof(c, 0.08, 46, 56, shade(C.thatch, -0.05));
+      const g = c.g;
+      // a sign hanging from a bracket by the door
+      const s1 = c.pt(1.2, 1.85, 44), s2 = c.pt(1.5, 1.85, 44);
+      g.strokeStyle = C.timber; g.lineWidth = 3; g.beginPath(); g.moveTo(s1.x, s1.y); g.lineTo(s2.x, s2.y); g.stroke();
+      c.poly([{ x: s2.x - 4, y: s2.y + 2 }, { x: s2.x + 8, y: s2.y + 8 }, { x: s2.x + 8, y: s2.y + 24 }, { x: s2.x - 4, y: s2.y + 18 }], C.bronze, edge(C.bronze));
+      // benches and a barrel out front
+      for (const x of [0.35, 1.45]) c.poly([c.pt(x, 1.92, 8), c.pt(x + 0.35, 1.92, 8), c.pt(x + 0.35, 2.05, 8), c.pt(x, 2.05, 8)], shade(C.timber, 0.2), edge(C.timber));
+      const bar = c.pt(1.85, 1.95);
+      g.fillStyle = shade(C.timber, 0.05); g.beginPath(); g.ellipse(bar.x, bar.y - 8, 7, 10, 0, 0, Math.PI * 2); g.fill();
+      return c.sprite([d, w1, w2], [c.pt(1.3, 0.7, 120)]);
+    }
+    case 'healer': {
+      // A small round hut with a garden of herbs out front.
+      const c = new Canvas(1, 1, 110);
+      const g = c.g;
+      for (let i = 0; i < 6; i++) {
+        const p = c.pt(0.15 + (i % 3) * 0.12, 0.82 + Math.floor(i / 3) * 0.08);
+        g.fillStyle = ['#6E9A4A', '#8AAE5A', '#A07AB0'][i % 3];
+        g.beginPath(); g.ellipse(p.x, p.y - 3, 5, 3.5, 0, 0, Math.PI * 2); g.fill();
+      }
+      const ctr = c.pt(0.58, 0.42);
+      cylinder(c, ctr.x, ctr.y, T * 0.26, 30, shade(C.mudbrick, 0.08), C.redClay);
+      g.fillStyle = '#4A3326'; g.fillRect(ctr.x - 6, ctr.y - 4 - 18 + 16, 12, 18);
+      // a conical thatch roof
+      g.fillStyle = C.thatch;
+      g.beginPath(); g.moveTo(ctr.x - T * 0.32, ctr.y - 28); g.lineTo(ctr.x, ctr.y - 78); g.lineTo(ctr.x + T * 0.32, ctr.y - 28); g.closePath(); g.fill();
+      g.strokeStyle = edge(C.thatch); g.lineWidth = 1.2; g.stroke();
+      // a bundle of herbs drying under the eaves
+      g.fillStyle = '#7A9A4A'; g.beginPath(); g.ellipse(ctr.x + 18, ctr.y - 22, 3, 7, 0, 0, Math.PI * 2); g.fill();
+      return c.sprite([{ x: ctr.x, y: ctr.y - 6 }]);
+    }
+    case 'scribes': {
+      // Long and many-windowed, with a small tower for the tablets.
+      const c = new Canvas(2, 2, 170);
+      box(c, 0.2, 46, shade(C.mudbrick, 0.06), { base: C.redClay, baseH: 10, top: shade(C.mudbrick, 0.16) });
+      const d = door(c, 0.6, 0.2, 0.22, 28);
+      const ws = [0.45, 0.8, 1.15, 1.5].map((at) => rightWindow(c, at, 0.2, 26, 0.09));
+      const L = (z: number) => c.pt(1.05, 1.15, z), B = (z: number) => c.pt(1.55, 1.15, z), R = (z: number) => c.pt(1.55, 0.65, z), Tp = (z: number) => c.pt(1.05, 0.65, z);
+      c.poly([L(46), B(46), B(96), L(96)], shade(C.mudbrick, 0.1), edge(C.mudbrick));
+      c.poly([B(46), R(46), R(96), B(96)], shade(C.mudbrick, -0.08), edge(C.mudbrick));
+      c.poly([L(96), B(96), R(96), Tp(96)], shade(C.mudbrick, 0.2), edge(C.mudbrick));
+      const tw1 = rightWindow(c, 0.9, 0.45, 82, 0.08);
+      return c.sprite([d, ...ws, tw1]);
+    }
+    case 'temple': {
+      // A stepped mound of earth and brick with a shrine on top.
+      const c = new Canvas(3, 3, 230);
+      const tiers: [number, number, string][] = [[0.15, 34, shade(C.mudbrick, -0.05)], [0.55, 30, C.mudbrick], [0.95, 28, shade(C.mudbrick, 0.08)]];
+      let z = 0;
+      for (const [inset, hgt, col] of tiers) {
+        const L = (q: number) => c.pt(inset, 3 - inset, q), B = (q: number) => c.pt(3 - inset, 3 - inset, q), R = (q: number) => c.pt(3 - inset, inset, q), Tp = (q: number) => c.pt(inset, inset, q);
+        c.poly([L(z), B(z), B(z + hgt), L(z + hgt)], shade(col, 0.06), edge(col));
+        c.poly([B(z), R(z), R(z + hgt), B(z + hgt)], shade(col, -0.12), edge(col));
+        c.poly([L(z + hgt), B(z + hgt), R(z + hgt), Tp(z + hgt)], shade(col, 0.15), edge(col));
+        z += hgt;
+      }
+      // the stair up the front
+      c.poly([c.pt(1.3, 2.85, 0), c.pt(1.7, 2.85, 0), c.pt(1.7, 2.05, z), c.pt(1.3, 2.05, z)], shade(C.redClay, 0.05), edge(C.redClay));
+      const L = (q: number) => c.pt(1.2, 1.8, q), B = (q: number) => c.pt(1.8, 1.8, q), R = (q: number) => c.pt(1.8, 1.2, q);
+      c.poly([L(z), B(z), B(z + 34), L(z + 34)], shade(C.redClay, 0.08), edge(C.redClay));
+      c.poly([B(z), R(z), R(z + 34), B(z + 34)], shade(C.redClay, -0.1), edge(C.redClay));
+      pyramidRoof(c, 1.12, z + 32, 30, C.thatch);
+      const fire = c.pt(1.5, 1.95, z + 8);
+      return c.sprite([fire], [c.pt(1.5, 1.5, z + 70)]);
+    }
+    case 'guildhall': {
+      const c = new Canvas(2, 2, 170);
+      box(c, 0.18, 62, shade(C.timber, 0.4), { base: C.redClay, baseH: 14 });
+      const d = door(c, 0.8, 0.18, 0.3, 38);
+      const w1 = rightWindow(c, 0.5, 0.18, 40, 0.14);
+      const w2 = rightWindow(c, 1.0, 0.18, 40, 0.14);
+      const w3 = rightWindow(c, 1.5, 0.18, 40, 0.14);
+      pyramidRoof(c, 0.06, 58, 64, shade(C.thatch, 0.05));
+      // banners either side of the door
+      for (const x of [0.4, 1.25]) {
+        const b1 = c.pt(x, 1.82, 58), b2 = c.pt(x + 0.18, 1.82, 58);
+        c.poly([b1, b2, { x: b2.x, y: b2.y + 36 }, { x: (b1.x + b2.x) / 2, y: b1.y + 44 }, { x: b1.x, y: b1.y + 36 }], [C.bronze, '#2C5A8C', C.redClay][v], edge(C.bronze));
+      }
+      return c.sprite([d, w1, w2, w3]);
     }
     case 'bighouse': {
       const c = new Canvas(2, 2, 160);
@@ -598,11 +714,20 @@ export function hasBuildingArt(kind: BuildingKind) {
   return !!key && realSprite(key, 0) !== undefined;
 }
 
-export function buildingSprite(kind: BuildingKind, variant: number, winter: boolean): Sprite {
+const ERA_ORDER: Era[] = ['bronze', 'iron', 'stone-timber', 'sail-dome', 'steam', 'electric', 'glass'];
+
+/**
+ * A building's look: art for the era it was built in, or else the nearest earlier era that has
+ * art (so a city doesn't change look until there's art for its new era), or else a placeholder.
+ */
+export function buildingSprite(kind: BuildingKind, variant: number, winter: boolean, era: Era = 'bronze'): Sprite {
   const key = ART_KEY[kind];
   if (key) {
-    const real = realSprite(key, variant, winter ? 'winter' : undefined);
-    if (real) return real;
+    for (let e = Math.max(0, ERA_ORDER.indexOf(era)); e >= 0; e--) {
+      const k = e === 0 ? key : key.replace('_bronze_', `_${ERA_ORDER[e]}_`);
+      const real = realSprite(k, variant, winter ? 'winter' : undefined);
+      if (real) return real;
+    }
   }
   const ck = `b:${kind}:${variant % 3}`;
   let s = cache.get(ck);

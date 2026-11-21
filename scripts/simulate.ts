@@ -30,11 +30,17 @@ for (let day = 0; day < hours * DAYS_PER_YEAR; day++) {
       console.log(
         `Y${String(year).padStart(3)} pop ${String(population(s)).padStart(4)} (alive ${alive.length}) ` +
         `food ${Math.round(s.stores.food)} wood ${Math.round(s.stores.wood)} goods ${Math.round(s.stores.goods)} ` +
-        `homes ${homes} bld ${buildings.length} stage ${s.stage} | ${s.yearNames[year]}`,
+        `homes ${homes} bld ${buildings.length} stage ${s.stage} map ${s.map.w} | ${s.age.name} (${s.lore.known.length} disc, ${Math.round(s.lore.points)}pts) | ${s.yearNames[year]}`,
       );
     }
   }
 }
+console.log('\nAges:', s.ages.map((a) => `Y${Math.floor(a.from / DAYS_PER_YEAR) + 1} ${a.name}`).join(' → '));
+console.log('Discoveries:', s.lore.known.map((k) => `Y${Math.floor(k.day / DAYS_PER_YEAR) + 1} ${k.id}`).join(', '));
+console.log('Guilds:', s.guilds.map((g) => g.name).join(', '), '| walls', s.walls ? `${s.walls.kind} r${s.walls.r.toFixed(1)} built ${s.walls.built}` : 'none');
+const kindsBuilt: Record<string, number> = {};
+for (const b of s.buildings) if (!b.removed) kindsBuilt[b.kind] = (kindsBuilt[b.kind] ?? 0) + 1;
+console.log('Buildings:', JSON.stringify(kindsBuilt));
 const deaths = s.people.filter((p) => !p.alive);
 const causes: Record<string, number> = {};
 for (const p of deaths) causes[p.cause ?? '?'] = (causes[p.cause ?? '?'] ?? 0) + 1;

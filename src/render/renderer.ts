@@ -18,6 +18,8 @@ interface Flake { x: number; y: number; speed: number; sway: number }
 
 type Drawable =
   | { depth: number; kind: 'sprite'; sprite: Sprite; gx: number; gy: number; b?: Building; alpha?: number; fit?: number }
+  | { depth: number; kind: 'wall'; x: number; y: number }
+  | { depth: number; kind: 'deck'; x: number; y: number; alongX: boolean }
   | { depth: number; kind: 'walker'; id: number }
   | { depth: number; kind: 'animal'; key: string };
 
@@ -32,6 +34,8 @@ export class Renderer {
   walkers = new Walkers();
   fauna = new Fauna();
   private puffs: Puff[] = [];
+  /** The map width last drawn, to follow the map when it widens. */
+  private mapW = 0;
   private flakes: Flake[] = [];
   private last = 0;
   private lastSmoke = 0;
@@ -97,6 +101,15 @@ export class Renderer {
     // Clamp: timestamps can jump (sleep, wake, a reset clock); never run time backwards.
     const realDt = this.last ? Math.max(0, Math.min(250, now - this.last)) : 16;
     this.last = now;
+    if (this.mapW && s.map.w !== this.mapW) {
+      // The map widened around the old one: everything moved by the same amount.
+      const d = (s.map.w - this.mapW) / 2;
+      this.cam.x += d; this.cam.y += d;
+      this.walkers = new Walkers();
+      this.fauna = new Fauna();
+      this.puffs = [];
+    }
+    this.mapW = s.map.w;
     if (running) this.frozenAt = null;
     else this.frozenAt ??= now;
     const dt = running ? realDt : 0;
@@ -137,6 +150,21 @@ export class Renderer {
     drawBirds(this.g, this.fauna.birds, now);
     this.drawLighting(s, now);
     if (season === 3) this.drawSnow(dt);
+    this.drawMood(s);
+  }
+
+  /** Side ages color the whole world a little: sickly after plague, grey after fire, strange in an age of omens. */
+  private drawMood(s: GameState) {
+    if (!s.age.side) return;
+    const last = s.ages[s.ages.length - 1];
+    const tint: Record<string, string> = { plague: 'rgba(150,170,110,0.16)', ash: 'rgba(120,115,110,0.2)', omens: 'rgba(130,100,190,0.12)', comet: 'rgba(110,200,180,0.1)', alchemy: 'rgba(200,160,60,0.1)' };
+    const c = tint[last?.side ?? ''];
+    if (!c) return;
+    const g = this.g;
+    g.globalCompositeOperation = 'color';
+    g.fillStyle = c;
+    g.fillRect(0, 0, this.w, this.h);
+    g.globalCompositeOperation = 'source-over';
   }
 
   /** The diorama's earthen sides along the front edges of the map. */
@@ -185,6 +213,7 @@ export class Renderer {
     const marsh = winter ? mix(C.marsh, C.snow, 0.5) : C.marsh;
     const shallow = winter ? mix(C.shallow, '#DCEAF0', 0.35) : C.shallow;
     const trail = winter ? mix(C.dirt, C.snow, 0.45) : C.dirt;
+    const plaza = mix(C.stone, C.sand, 0.45);
     for (let y = r.y0; y <= r.y1; y++) {
       for (let x = r.x0; x <= r.x1; x++) {
         const i = y * map.w + x;
@@ -193,7 +222,8 @@ export class Renderer {
         const vary = ((n % 3) - 1) * 0.035;
         let col: string;
         if (t === TERRAIN.DEEP) col = C.deep;
-        else if (t === TERRAIN.WATER) col = shallow;
+        else if (t === TERRAIN.WATER || t === TERRAIN.BRIDGE) col = shallow;
+        else if (t === TERRAIN.PLAZA) col = shade(winter ? mix(plaza, C.snow, 0.4) : plaza, ((n >> 3) % 3 - 1) * 0.05);
         else if (t === TERRAIN.SAND) col = shade(sand, vary);
         else if (t === TERRAIN.ROCK) col = shade(rock, vary);
         else if (t === TERRAIN.MARSH) col = shade(marsh, vary);
@@ -202,7 +232,7 @@ export class Renderer {
           col = shade(grass, vary + fert);
         }
         const wear = map.wear[i];
-        if (wear > 0.7 && t !== TERRAIN.WATER && t !== TERRAIN.DEEP) col = mix(col, trail, Math.min(4, Math.round(wear))/ 4.6);
+        if (wear > 0.7 && t !== TERRAIN.WATER && t !== TERRAIN.DEEP && t !== TERRAIN.PLAZA && t !== TERRAIN.BRIDGE) col = mix(col, trail, Math.min(4, Math.round(wear))/ 4.6);
         const c = this.toScreen(x + 0.5, y + 0.5);
         if (c.x < -tw || c.x > this.w + tw || c.y < -tw || c.y > this.h + tw) continue;
         let p = buckets.get(col);
@@ -302,11 +332,27 @@ export class Renderer {
     for (const b of s.buildings) {
       if (b.removed || b.kind === 'field') continue;
       if (b.x + b.w < r.x0 || b.x > r.x1 + 1 || b.y + b.h < r.y0 || b.y > r.y1 + 1) continue;
-      const sprite = b.built ? buildingSprite(b.kind, b.variant, winter) : scaffoldSprite(b.w, b.h, b.progress / Math.max(1, b.required));
+      if (b.kind === 'bridge' && b.built) {
+        // A deck of planks over the water, a tile at a time.
+        for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) list.push({ depth: x + y + 1, kind: 'deck', x, y, alongX: b.w > 1 });
+        continue;
+      }
+      const sprite = b.built ? buildingSprite(b.kind, b.variant, winter, b.era) : scaffoldSprite(b.w, b.h, b.progress / Math.max(1, b.required));
       const depth = b.kind === 'graveyard' || b.kind === 'pen' ? b.x + b.y + 0.5 : b.x + b.w + b.y + b.h; // low enclosures sit under what's inside them
       // Art made for a different footprint (e.g. a 2×2 granary in an older city's 1×1 spot) is scaled to fit.
       const fit = sprite.tiles && sprite.tiles !== b.w ? b.w / sprite.tiles : undefined;
       list.push({ depth, kind: 'sprite', sprite, gx: b.x + b.w, gy: b.y + b.h, b, fit });
+    }
+    // The town wall, where it's been built so far.
+    const wl = map.walls;
+    if (wl && s.walls) {
+      for (let y = r.y0; y <= r.y1; y++) {
+        for (let x = r.x0; x <= r.x1; x++) {
+          const i = y * map.w + x;
+          if (!wl[i] || map.occ[i] || map.terrain[i] === TERRAIN.WATER || map.terrain[i] === TERRAIN.DEEP || map.terrain[i] === TERRAIN.BRIDGE) continue;
+          list.push({ depth: x + y + 1, kind: 'wall', x, y });
+        }
+      }
     }
     for (const gr of s.graves) {
       list.push({ depth: gr.x + gr.y + 0.9, kind: 'sprite', sprite: graveSprite(gr.id), gx: gr.x + 0.45, gy: gr.y + 0.45 });
@@ -390,6 +436,8 @@ export class Renderer {
     const selB = selection?.kind === 'building' ? selection.id : -1;
     const selP = selection?.kind === 'person' ? selection.id : -1;
     for (const d of this.drawn) {
+      if (d.kind === 'wall') { this.drawWall(s, d.x, d.y); continue; }
+      if (d.kind === 'deck') { this.drawDeck(d.x, d.y, d.alongX, s.buildings[s.map.occ[d.y * s.map.w + d.x] - 1]?.id === selB); continue; }
       if (d.kind === 'sprite') {
         if (d.b && d.b.id === selB) this.outlineFootprint(d.b);
         if (d.b?.burned) {
@@ -444,6 +492,108 @@ export class Renderer {
       }
       g.globalAlpha = 1;
     }
+  }
+
+  /** Stakes (or stonework) of the town wall that fall within one tile. */
+  private drawWall(s: GameState, tx: number, ty: number) {
+    const w = s.walls!;
+    const g = this.g;
+    const k = this.tw / BASE_TW;
+    const a0 = Math.atan2(ty + 0.5 - w.cy, tx + 0.5 - w.cx);
+    const step = 0.2 / w.r;
+    const done = w.built ? 1 : w.progress / Math.max(1, w.required);
+    const gate = s.map.walls?.[ty * s.map.w + tx] === 2;
+    const pts: { x: number; y: number }[] = [];
+    for (let j = -8; j <= 8; j++) {
+      const a = a0 + j * step;
+      const gx = w.cx + Math.cos(a) * w.r;
+      const gy = w.cy + Math.sin(a) * w.r;
+      if (Math.floor(gx) !== tx || Math.floor(gy) !== ty) continue;
+      if ((((a + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2)) > done) continue;
+      pts.push(this.toScreen(gx, gy));
+    }
+    if (!pts.length) return;
+    if (gate) {
+      // Gateposts, taller than the wall, at either side of the opening.
+      const half = 1.1 / w.r;
+      for (const g0 of w.gates) {
+        for (const side of [-1, 1]) {
+          const a = g0 + side * half;
+          const gx = w.cx + Math.cos(a) * w.r;
+          const gy = w.cy + Math.sin(a) * w.r;
+          if (Math.floor(gx) !== tx || Math.floor(gy) !== ty) continue;
+          const p = this.toScreen(gx, gy);
+          const hgt = (w.kind === 'stone' ? 40 : 30) * k;
+          g.fillStyle = w.kind === 'stone' ? shade(C.stone, 0.05) : shade(C.timber, -0.05);
+          g.fillRect(p.x - 3 * k, p.y - hgt, 6 * k, hgt);
+          g.fillStyle = w.kind === 'stone' ? shade(C.stone, -0.2) : C.redClay;
+          g.fillRect(p.x - 3.5 * k, p.y - hgt - 4 * k, 7 * k, 4 * k);
+        }
+      }
+      return;
+    }
+    if (w.kind === 'stone') {
+      const hgt = 22 * k;
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        g.fillStyle = shade(C.stone, (i % 2) * 0.04 - 0.02);
+        g.fillRect(p.x - 3 * k, p.y - hgt, 6.5 * k, hgt);
+        if (i % 2 === 0) { g.fillStyle = shade(C.stone, 0.1); g.fillRect(p.x - 3 * k, p.y - hgt - 4 * k, 4 * k, 4 * k); }
+      }
+      return;
+    }
+    // Sharpened stakes, lashed together.
+    const hgt = 17 * k;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const h = hgt * (0.92 + ((tx * 7 + ty * 3 + i) % 3) * 0.05);
+      g.fillStyle = shade(C.timber, ((i + tx) % 2) * 0.08 - 0.04);
+      g.beginPath();
+      g.moveTo(p.x - 2.2 * k, p.y);
+      g.lineTo(p.x - 2.2 * k, p.y - h);
+      g.lineTo(p.x, p.y - h - 4 * k);
+      g.lineTo(p.x + 2.2 * k, p.y - h);
+      g.lineTo(p.x + 2.2 * k, p.y);
+      g.closePath();
+      g.fill();
+    }
+    g.strokeStyle = shade(C.thatch, -0.2); g.lineWidth = Math.max(1, 1.2 * k);
+    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p.x, p.y - hgt * 0.55) : g.moveTo(p.x, p.y - hgt * 0.55))); g.stroke();
+  }
+
+  /** One tile of a timber bridge. */
+  private drawDeck(x: number, y: number, alongX: boolean, selected: boolean) {
+    const g = this.g;
+    const k = this.tw / BASE_TW;
+    const lift = 5 * k;
+    const [x0, x1, y0, y1] = alongX ? [x, x + 1, y + 0.12, y + 0.88] : [x + 0.12, x + 0.88, y, y + 1];
+    const p = (gx: number, gy: number, z = lift) => { const q = this.toScreen(gx, gy); return { x: q.x, y: q.y - z }; };
+    // posts down into the water
+    g.fillStyle = shade(C.timber, -0.3);
+    for (const [gx, gy] of [[x0, y1], [x1, y1]]) { const q = p(gx, gy, 0); g.fillRect(q.x - 1.5 * k, q.y - lift, 3 * k, lift + 3 * k); }
+    const c = [p(x0, y0), p(x1, y0), p(x1, y1), p(x0, y1)];
+    g.beginPath(); c.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); g.closePath();
+    g.fillStyle = selected ? shade(C.timber, 0.35) : shade(C.timber, 0.18); g.fill();
+    g.strokeStyle = shade(C.timber, -0.25); g.lineWidth = Math.max(1, k); g.stroke();
+    // planks across the deck
+    g.strokeStyle = shade(C.timber, -0.05); g.lineWidth = Math.max(0.6, 0.7 * k);
+    g.beginPath();
+    for (let t = 0.2; t < 1; t += 0.2) {
+      const a = alongX ? p(x0 + t, y0) : p(x0, y0 + t);
+      const b = alongX ? p(x0 + t, y1) : p(x1, y0 + t);
+      g.moveTo(a.x, a.y); g.lineTo(b.x, b.y);
+    }
+    g.stroke();
+    // rails along both sides
+    g.strokeStyle = shade(C.timber, -0.15); g.lineWidth = Math.max(1, 1.4 * k);
+    const rail = 6 * k;
+    g.beginPath();
+    if (alongX) {
+      for (const gy of [y0, y1]) { const a = p(x0, gy, lift + rail), b = p(x1, gy, lift + rail); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); }
+    } else {
+      for (const gx of [x0, x1]) { const a = p(gx, y0, lift + rail), b = p(gx, y1, lift + rail); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); }
+    }
+    g.stroke();
   }
 
   private drawFlames(b: Building, now: number) {
@@ -583,7 +733,7 @@ export class Renderer {
     for (const p of s.people) if (p.alive && p.home !== undefined && p.away === undefined) occupied.add(p.home);
     for (const d of this.drawn) {
       if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length || d.b.burned) continue;
-      const home = ['tent', 'leanto', 'hut', 'house', 'bighouse'].includes(d.b.kind);
+      const home = ['tent', 'leanto', 'hut', 'house', 'townhouse', 'bighouse'].includes(d.b.kind);
       if (home && !occupied.has(d.b.id)) continue;
       const scale = (this.tw / d.sprite.tilePx) * (d.fit ?? 1);
       const a = this.toScreen(d.gx, d.gy);

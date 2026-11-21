@@ -39,6 +39,18 @@ Any number of variants (`v01`, `v02`, …) of anything are used at random. State
 | The Old Stone (in `landmarks/`, tall template) | `lmk_old-stone_bronze_1x1` |
 | Trees, rocks and stumps | `nat_broadleaf_any_1x1`, `nat_pine_any_1x1`, `nat_fruit_any_1x1`, `nat_bush_any_1x1`, `nat_rock_any_1x1`, `nat_stump_any_1x1` |
 | Animal pen (2×2) | `bld_pen_bronze_2x2` |
+| Two-storey house (towns) | `bld_townhouse_bronze_1x1` |
+| Alehouse (2×2) | `bld_alehouse_bronze_2x2` |
+| Healer's hut | `bld_healer-hut_bronze_1x1` |
+| House of scribes (2×2) | `bld_scribe-house_bronze_2x2` |
+| Temple (3×3, a stepped earthen temple in the Bronze era) | `bld_temple_bronze_3x3` |
+| Guildhall (2×2) | `bld_guildhall_bronze_2x2` |
+
+The town wall (palisade, later stone) and bridges are drawn by the game for now, since they bend to fit the town and the river.
+
+## Later eras
+
+Every building above can also be drawn for a later era: swap `bronze` for `iron`, `stone-timber`, `sail-dome`, `steam`, `electric` or `glass` (for example `bld_home_iron_1x1_v01.png`). Each building keeps the era it was built in, and old ones are rebuilt in the new style over the years. When a city enters an era there's no art for yet, it keeps using the most recent era that has some, so nothing ever looks out of place.
 
 ## Night lights and smoke
 

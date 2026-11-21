@@ -81,12 +81,26 @@ export function inBounds(s: GameState, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < s.map.w && y < s.map.h;
 }
 
+/** 0: not on the town wall; 1: the wall itself; 2: a gate. */
+export function wallTile(s: GameState, x: number, y: number): 0 | 1 | 2 {
+  const w = s.walls;
+  if (!w) return 0;
+  const dx = x + 0.5 - w.cx;
+  const dy = y + 0.5 - w.cy;
+  const d = Math.hypot(dx, dy);
+  if (Math.abs(d - w.r) >= 0.62) return 0;
+  const a = Math.atan2(dy, dx);
+  const half = 1.1 / w.r;
+  for (const g of w.gates) if (Math.abs(Math.atan2(Math.sin(a - g), Math.cos(a - g))) < half) return 2;
+  return 1;
+}
+
 export function homesOf(s: GameState): Building[] {
   return s.buildings.filter((b) => !b.removed && b.built && isDwelling(b.kind));
 }
 
 export function isDwelling(kind: Building['kind']): boolean {
-  return kind === 'tent' || kind === 'leanto' || kind === 'hut' || kind === 'house' || kind === 'bighouse';
+  return kind === 'tent' || kind === 'leanto' || kind === 'townhouse' || kind === 'hut' || kind === 'house' || kind === 'bighouse';
 }
 
 export function centerOf(b: Building): { x: number; y: number } {

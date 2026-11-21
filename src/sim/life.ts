@@ -4,6 +4,8 @@ import { F, log, P } from './chronicle';
 import { assignJobs } from './economy';
 import { DREAM_LABEL, childOf, nameChild } from './people';
 import { hasLaw, lawMood } from './society';
+import { boost } from './ages';
+import { townMood } from './town';
 import { orphanPets } from './animals';
 import { itemsOf, passHeirlooms, weddingKeepsake } from './items';
 import { addBuilding, findSite, moveIn } from './planner';
@@ -159,6 +161,9 @@ export function lifeDay(s: GameState) {
   const season = seasonIndex(s.day);
   const hungry = s.flags.hungerSince !== undefined;
   const hasHealer = present(s).some((p) => p.job === 'healer' && !p.sick);
+  // What's been learned about sickness, and healers' huts to nurse people in.
+  const huts = s.buildings.filter((b) => b.kind === 'healer' && b.built && !b.removed).length;
+  const healing = boost(s, 'health') * (1 + Math.min(3, huts) * 0.12);
   const people = present(s);
   const dark = darkFactor(s);
 
@@ -197,6 +202,7 @@ export function lifeDay(s: GameState) {
         if (s.flags.healerUntil !== undefined && s.day < s.flags.healerUntil) d *= 0.5;
         if (age < 5 || age >= 60) d *= 1.8;
         if (hasHealer) d *= 0.5;
+        d /= healing;
         if (blessed) d *= 0.4;
         if (chance(s.rng, d)) {
           if (p.sick.plague && s.plague) s.plague.deaths++;
@@ -248,6 +254,7 @@ export function lifeDay(s: GameState) {
     if (p.spouse !== undefined) base += 8;
     if (hungry) base -= 20;
     base += lawMood(s, p);
+    base += townMood(s, p);
     if (itemsOf(s, p.id).length) base += 3; // something of their family's to hold onto
     if (p.sick || p.injured) base -= 10;
     base += Math.min(10, (s.stores.goods / Math.max(1, people.length)) * 2);
@@ -437,7 +444,7 @@ function giveBirth(s: GameState, mother: Person) {
   }
 
   // The dangers of childbirth.
-  if (chance(s.rng, 0.012 * (dark < 0.2 ? 0 : dark))) {
+  if (chance(s.rng, 0.012 * (dark < 0.2 ? 0 : dark) / boost(s, 'births'))) {
     killPerson(s, mother, 'childbirth', deathText(s, mother, 'childbirth'), 1);
   } else if (tone(s) === 'grim' && chance(s.rng, 0.03)) {
     const b = babies[0];

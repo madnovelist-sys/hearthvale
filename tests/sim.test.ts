@@ -6,6 +6,13 @@ import { DAYS_PER_YEAR, type GameState } from '../src/sim/types';
 import { ageOf, population } from '../src/sim/world';
 import { logWords, startSession, stopSession, tick, focusDay } from '../src/game/clock';
 import { parseSave } from '../src/game/save';
+import { expandMap, growMap, isWater } from '../src/sim/mapgen';
+import { DISCOVERIES, agesYear, beginSideAge, boost, discover, discovery, loreDay, nextCost } from '../src/sim/ages';
+import { inspire } from '../src/sim/acts';
+import { addBuilding, findSite, settlementRegion } from '../src/sim/planner';
+import { describeArms, grantCharter, planBridge, planWalls, progressWalls } from '../src/sim/town';
+import { tileCost } from '../src/sim/path';
+import { TERRAIN } from '../src/sim/types';
 
 function run(seed: number, years: number): GameState {
   const s = foundSettlement({ seed, name: 'Testbrook' });
@@ -317,5 +324,149 @@ describe('design notes', () => {
       s.rng.s += 1;
     }
     void passHeirlooms;
+  });
+});
+
+describe('towns and ages', () => {
+  it('the map widens around the settlement, keeping everything where it stands', () => {
+    const s = run(71, 3);
+    const before = s.buildings.filter((b) => !b.removed).map((b) => ({ id: b.id, dx: b.x - s.hearth.x, dy: b.y - s.hearth.y, t: s.map.terrain[b.y * s.map.w + b.x] }));
+    const water = s.map.terrain.filter(isWater).length;
+    expect(s.map.w).toBe(64);
+    s.stage = 'town';
+    const d = growMap(s, true);
+    expect(d).toBe(32);
+    expect(s.map.w).toBe(128);
+    for (const b of before) {
+      const nb = s.buildings[b.id];
+      expect([nb.x - s.hearth.x, nb.y - s.hearth.y]).toEqual([b.dx, b.dy]);
+      expect(s.map.terrain[nb.y * s.map.w + nb.x]).toBe(b.t);
+      expect(s.map.occ[nb.y * s.map.w + nb.x]).toBe(nb.id + 1);
+    }
+    // The river runs on beyond the old edge.
+    expect(s.map.terrain.filter(isWater).length).toBeGreaterThan(water * 1.5);
+    // The same seed's world: a second settlement widened the same way matches.
+    const t = run(71, 3);
+    t.stage = 'town';
+    growMap(t, true);
+    expect(t.map.terrain).toEqual(s.map.terrain);
+  });
+
+  it('older maps carry their own river on past the old edge', () => {
+    const s = run(72, 1);
+    delete s.map.gen; // as if made before maps were cut from a world
+    const edgeWater = (m: GameState['map']) => {
+      let n = 0;
+      for (let k = 0; k < m.w; k++) for (const i of [k, (m.h - 1) * m.w + k, k * m.w, k * m.w + m.w - 1]) if (isWater(m.terrain[i])) n++;
+      return n;
+    };
+    expect(edgeWater(s.map)).toBeGreaterThan(0);
+    expandMap(s, 128);
+    expect(s.map.gen).toBeUndefined();
+    expect(edgeWater(s.map)).toBeGreaterThan(0);
+  });
+
+  it('people make discoveries; a great one starts an age and later a new era', () => {
+    const s = run(73, 30);
+    expect(s.lore.known.length).toBeGreaterThan(0);
+    for (const k of s.lore.known) {
+      expect(discovery(k.id)).toBeDefined();
+      expect(s.chronicle.some((e) => e.kind === 'discovery' && e.day === k.day)).toBe(true);
+    }
+    expect(boost(s, 'food')).toBeGreaterThanOrEqual(1);
+    // Iron opens the next era.
+    const ages = s.ages.length;
+    s.flags.ceremony = undefined;
+    discover(s, discovery('iron')!, s.people.find((p) => p.alive && p.job === 'smith'));
+    expect(s.age.name).toBe('The Age of Iron');
+    expect(s.age.era).toBe('iron');
+    expect(s.ages.length).toBe(ages + 1);
+    expect((s.flags.ceremony as { kind: string } | undefined)?.kind).toBe('age');
+    // Buildings finished from now on are built in the new way.
+    const b = addBuilding(s, 'well', 1, 1, { built: true });
+    expect(b.era).toBe('iron');
+  });
+
+  it('side ages only come when the sliders allow, and pass', () => {
+    const s = run(74, 9);
+    s.settings.darkness = 0;
+    expect(beginSideAge(s, 'plague')).toBe(false);
+    s.settings.darkness = 100;
+    const was = s.age.name;
+    expect(beginSideAge(s, 'plague')).toBe(true);
+    expect(s.age.name).toBe('The Age of Plague');
+    s.day = s.age.until!;
+    agesYear(s);
+    expect(s.age.name).toBe(was);
+    expect(s.age.side).toBe(false);
+  });
+
+  it('Inspire makes the next discovery come from that person', () => {
+    const s = run(75, 6);
+    const potter = s.people.find((p) => p.alive && p.away === undefined && ageOf(s, p) >= 16)!;
+    potter.job = 'potter';
+    // Everything else in the Bronze era is already known.
+    s.lore.known = DISCOVERIES.filter((d) => d.era === 0 && d.id !== 'potters-wheel').map((d) => ({ id: d.id, day: 0 }));
+    s.lore.last = -999;
+    s.favor = 10;
+    expect(inspire(s, potter.id).ok).toBe(true);
+    expect(s.favor).toBe(6);
+    s.lore.points = nextCost(s);
+    loreDay(s);
+    const last = s.lore.known.at(-1)!;
+    expect(last.id).toBe('potters-wheel');
+    expect(last.by).toBe(potter.id);
+  });
+
+  it('a town raises a wall with gates, and a bridge opens the far bank', () => {
+    const s = run(76, 14);
+    s.stage = 'town';
+    growMap(s, true);
+    planWalls(s, 'palisade');
+    expect(s.walls).toBeDefined();
+    const line = s.map.walls!;
+    expect(line.some((v) => v === 1)).toBe(true);
+    expect(line.some((v) => v === 2)).toBe(true);
+    // Nothing is built on the line of the wall.
+    const site = findSite(s, 'house');
+    if (site) expect(line[site.y * s.map.w + site.x]).toBe(0);
+    // Once it's up, it blocks the way, except at the gates.
+    progressWalls(s, 1e9);
+    s.stores.wood = 1e6;
+    progressWalls(s, 1e9);
+    expect(s.walls!.built).toBe(true);
+    const wallAt = line.indexOf(1);
+    const gateAt = line.indexOf(2);
+    expect(tileCost(s.map, s.buildings, wallAt)).toBe(Infinity);
+    if (s.map.terrain[gateAt] !== TERRAIN.WATER && s.map.terrain[gateAt] !== TERRAIN.DEEP && !s.map.occ[gateAt]) {
+      expect(tileCost(s.map, s.buildings, gateAt)).toBeLessThan(Infinity);
+    }
+    // A bridge.
+    const regionBefore = settlementRegion(s).reduce((a, v) => a + v, 0);
+    if (planBridge(s)) {
+      const bridge = s.buildings.find((b) => b.kind === 'bridge')!;
+      bridge.progress = bridge.required - 0.5;
+      s.stores.wood = 1e6;
+      s.walls = undefined;
+      for (let i = 0; i < 30 && !bridge.built; i++) stepDay(s);
+      expect(bridge.built).toBe(true);
+      expect(s.map.terrain[bridge.y * s.map.w + bridge.x]).toBe(TERRAIN.BRIDGE);
+      expect(settlementRegion(s).reduce((a, v) => a + v, 0)).toBeGreaterThan(regionBefore);
+    }
+  });
+
+  it('the town charter grants arms, and saves from before towns load', () => {
+    const s = run(77, 2);
+    grantCharter(s);
+    expect(s.arms).toBeDefined();
+    expect(describeArms(s.arms!)).toMatch(/ on /);
+    expect(s.flags.ceremony?.kind).toBe('charter');
+    const old = JSON.parse(JSON.stringify(s));
+    delete old.ages; delete old.lore; delete old.guilds; delete old.nextId.guild;
+    old.day = 20 * DAYS_PER_YEAR;
+    const loaded = parseSave(JSON.stringify(old));
+    expect(loaded.ages.length).toBe(1);
+    expect(loaded.lore.points).toBeGreaterThan(0);
+    expect(loaded.guilds).toEqual([]);
   });
 });

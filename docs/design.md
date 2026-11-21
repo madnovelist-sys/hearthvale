@@ -19,7 +19,7 @@ The art direction lives in its own document (the Art Design Document). This file
 | Pace | 1 focus hour = 1 city year (360 days; a day is 10 focus seconds, a season 15 minutes). Adjustable later if it feels off. |
 | Measuring work | The player chooses when founding (and can change it in Settings): **time worked** or **words written**. Either way a start/stop timer runs the city's clock. With words, Sparks and the daily goal come from the word count entered after each session, and the word field only appears in that mode. Word-count app integrations come later. |
 | Platform | Desktop app first (Mac now; Windows next), built with Tauri so Android and iOS can follow from the same code. |
-| Eras | Bronze to modern, following the timescale with randomness. Ages are named for the discovery or event that starts them (Age of Bronze, Age of Sail…). Art is organized into seven visual eras. |
+| Eras | Bronze to modern, following the timescale with randomness. Ages are named for the discovery or event that starts them (Age of Bronze, Age of Sail…). Art is organized into seven visual eras. An era lasts at least 42–58 years (it differs by city); a discovery comes about every five years whatever the city's size. |
 | Weirdness | A slider, 0–4: Historical, Folklore, Uncanny, Mythic, Fantastical. |
 | Darkness | A slider, 0–100: Gentle, Balanced, Grim. Changes avoidable deaths and how the Chronicle tells hard things. No gore at any setting. |
 
@@ -40,7 +40,7 @@ The art direction lives in its own document (the Art Design Document). This file
 
 ## Acts (spent with Favor)
 
-Built: **Bless** (1), **Name** a year or a baby (1), **Create a Settler** (3), **Send on a Quest** (3), **Whisper a Law** (5, +2 for each trait that makes the leader dislike it), **Raise a Prophet** (8). Acts that bring people or send them away wait for dawn (the next session start).
+Built: **Bless** (1), **Name** a year or a baby (1), **Create a Settler** (3), **Send on a Quest** (3), **Inspire** (4: someone gets an idea that won't let go; knowledge gathers faster and the next discovery likely comes from their trade), **Whisper a Law** (5, +2 for each trait that makes the leader dislike it), **Raise a Prophet** (8). Acts that bring people or send them away wait for dawn (the next session start).
 
 **Petitions** at the Old Stone: when someone is gravely ill, away on a long quest, longing for a child, worried about the harvest, or when plague or fire strikes, people ask. Answering costs 1–4 Favor; ignored prayers lapse and life takes its course. Answered prayers inspire faith in the Unseen Keeper.
 
@@ -54,9 +54,9 @@ Planned: Matchmake, Inspire, Call a Festival, Commission, Avert Calamity, Found 
 | --- | --- | --- |
 | Settlement | 1–49 | Tents, round huts, mudbrick homes, fields, a well, a dock |
 | Village | 50–249 | Market stalls, gathering hall, homes upgraded to mudbrick |
-| Town | 250–1,999 | Planned: walls, guilds, leadership and laws |
-| City | 2,000–9,999 | Planned: districts, factions, wonders |
-| Metropolis | 10,000+ | Planned: crowd simulation at scale |
+| Town | 250–1,999 | A charter and coat of arms (and a chance to rename), a paved square, a palisade with gates, two-storey houses, alehouses, healers, scribes, temples, guilds and guildhalls, a bridge to the far bank. The map widens from 64 to 128 tiles. |
+| City | 2,000–9,999 | The map widens to 192 tiles, a second and third bridge, a bigger square. Planned: districts, factions, wonders |
+| Metropolis | 10,000+ | The map widens to 256 tiles. Planned: crowd simulation at scale |
 
 ## What's simulated now (Phase 1)
 
@@ -88,10 +88,21 @@ Planned: Matchmake, Inspire, Call a Festival, Commission, Avert Calamity, Found 
 - **Family houses**: big families (six or more under one roof) build a 2×2 family house.
 - **Family tree** view for anyone.
 
+### Towns and ages (Phase 3, first part)
+
+- **The map grows with the settlement**: each seed has one whole world (256 tiles across), and the map is a window onto its middle that widens at each stage, so the land beyond is always the same land. Cities founded before this carry their own river on past the old edge.
+- **Knowledge and discoveries**: everyone learns a little by living; crafters, elders, curious and clever people, markets and scribes add more. About every five years someone makes a discovery (named in the Chronicle and on their card): the potter's wheel, the plough, barley beer (alehouses), healing herbs (healers' huts), writing (scribes), lime mortar, the aqueduct, the heavy plough, the printing press, the steam engine… 52 in all, with real effects on food, crafts, wood, building speed, health and childbirth.
+- **Ages**: a great discovery starts an age named for it (the Age of the Wheel, the Age of Writing, the Age of Iron). The next era's great discoveries open once an era is well along, so which age opens an era (Iron, Law or Coin) depends on the city. At most two ages per era.
+- **Side ages**, when the sliders allow: the Age of Plague after a deadly plague, the Age of Ash after a great fire (Darkness), the Age of Omens after omen upon omen, the Age of the Comet (Weirdness). They tint the world a little and pass after 12–20 years.
+- **Era looks**: every building remembers the era it was built in; in a new era, old buildings are slowly rebuilt in the new way. Until there's art for an era, the most recent era's art is used.
+- **Ceremonies**: a new age or a charter is marked by a card at the next break (never during work).
+- **Towns** draw merchant caravans, journeymen, scholars and pilgrims as well as families. Guilds form when a trade has enough members, choose masters, raise halls, and make their members a little better at the work. Faiths with many followers raise temples.
+- **Plagues** in big towns now burn out (they used to linger for years once a town passed several hundred people).
+
 ## Roadmap
 
 1. **First Fire** (done): timer, goals, Sparks, Favor, four Acts, the Bronze settlement to village, Chronicle, saving, the art test scene. Plus the menu-bar clock and pausing when away.
 2. **Village life** (done): leadership and laws, emergent religion, petitions, plague and fire, businesses, Fortunes, family trees.
-3. **Town and city**: districts, guilds, crime and trials, factions, neighbors, trade and war, Wonders, family trees, ages advancing by discovery, a bigger map.
+3. **Town and city**: towns, the growing map, discoveries and ages (done). Next: districts, crime and trials, factions, neighbors, trade and war, Wonders.
 4. **Metropolis**: crowd simulation, later eras, performance work, ambient sound.
 5. **Polish and integrations**: Windows, Android and iOS, word-count integrations, sync between devices, optional AI-written chronicles.

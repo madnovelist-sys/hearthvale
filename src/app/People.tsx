@@ -11,6 +11,8 @@ import { CLOTHES } from '../render/palette';
 import { leaderTitle } from '../sim/society';
 import { ITEM_KIND_LABEL, itemsOf } from '../sim/items';
 import { petsOf } from '../sim/animals';
+import { guildOf } from '../sim/town';
+import { ERA_LABEL, discovery } from '../sim/ages';
 
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 import { PersonLink, RichText, ageText, when } from './format';
@@ -104,6 +106,8 @@ export function PersonCard({ id }: { id: number }) {
         {s.leader?.person === p.id && p.alive && <span class="tag gold">{leaderTitle(s)}</span>}
         {p.faith !== undefined && s.faiths[p.faith] && !s.faiths[p.faith].gone && <span class="tag">{cap(s.faiths[p.faith].name)}</span>}
         {s.buildings.filter((b) => b.owner === p.id && !b.removed && b.name).map((b) => <span class="tag" key={b.id}>Runs {b.name}</span>)}
+        {p.alive && (() => { const g = guildOf(s, p.job); return g && ageOf(s, p) >= 16 ? <span class="tag">{g.master === p.id ? 'Master of ' : ''}{cap(g.name)}</span> : null; })()}
+        {s.lore.known.filter((k) => k.by === p.id).map((k) => <span class="tag gold" key={k.id}>Discovered {discovery(k.id)?.name}</span>)}
       </div>
       {p.backstory && <p class="story">{p.backstory}</p>}
       <section>
@@ -175,6 +179,9 @@ export function BuildingCard({ id }: { id: number }) {
         {b.built ? (b.kind === 'hearth' ? 'Lit in the spring of Year 1' : `Built ${when(b.completed ?? b.founded)}`) : `Being built: ${Math.round((b.progress / Math.max(1, b.required)) * 100)}%`}
       </div>
       {b.kind === 'hearth' && <p class="story">The first fire. It burns while you work; when you rest, it banks to embers and the city sleeps.</p>}
+      {b.era && b.era !== 'bronze' && b.kind !== 'bridge' && <div class="sub">Built in the {ERA_LABEL[b.era]} style.</div>}
+      {b.kind === 'temple' && b.faith !== undefined && s.faiths[b.faith] && <p class="story">The house of {s.faiths[b.faith].name}.</p>}
+      {b.kind === 'bridge' && <p class="story">Timber laid over the river, so the town could cross to the far bank.</p>}
       {b.kind === 'stone' && <p class="story">The Old Stone, where the settlers leave petitions. A spiral is carved in it that nobody remembers carving.</p>}
       {people.length > 0 && (
         <section>

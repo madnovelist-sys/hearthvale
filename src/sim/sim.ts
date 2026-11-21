@@ -10,7 +10,9 @@ import { applyHarvestBoost } from './fortunes';
 import { petitionsDay } from './petitions';
 import { businessYear, faithYear, plantFaithSeed, societySeason } from './society';
 import type { TenetId } from './types';
-import { generateMap } from './mapgen';
+import { generateMap, growMap } from './mapgen';
+import { agesYear, beginSideAge, loreDay } from './ages';
+import { grantCharter, townDay, townYear } from './town';
 import { createPerson, draftPerson } from './people';
 import { addBuilding, findSite, plannerDay } from './planner';
 import { questsDay, questsSeason } from './quests';
@@ -40,6 +42,9 @@ export function foundSettlement(opts: FoundingOptions): GameState {
     name: opts.name,
     stage: 'settlement',
     age: { name: 'The Age of Bronze', era: 'bronze', since: 0 },
+    ages: [{ name: 'The Age of Bronze', era: 'bronze', from: 0 }],
+    lore: { points: 0, known: [] },
+    guilds: [],
     day: 0,
     map,
     hearth,
@@ -57,7 +62,7 @@ export function foundSettlement(opts: FoundingOptions): GameState {
     goals: { ...(opts.goals ?? DEFAULT_GOALS) },
     settings: { ...(opts.settings ?? DEFAULT_SETTINGS) },
     focus: { running: null, carryMs: 0, sparkMs: 0, sparkWords: 0, totalMs: 0, days: {}, sessions: [] },
-    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0, faith: 0, petition: 0, fortune: 0, pet: 0, item: 0 },
+    nextId: { person: 0, building: 0, entry: 0, quest: 0, grave: 0, party: 0, faith: 0, petition: 0, fortune: 0, pet: 0, item: 0, guild: 0 },
     flags: { relics: 0, knowledge: 0 },
     lateReturns: [],
     laws: [],
@@ -127,6 +132,8 @@ export function stepDay(s: GameState) {
   fireDay(s);
   petitionsDay(s);
   momentsDay(s);
+  loreDay(s);
+  townDay(s);
   if (d % 30 === 0) assignJobs(s);
   checkStage(s);
   s.day += 1;
@@ -136,6 +143,8 @@ export function stepDay(s: GameState) {
     itemsYear(s);
     faithYear(s);
     businessYear(s);
+    agesYear(s);
+    townYear(s);
     nameYear(s, yearOf(s.day - 1));
   }
 }
@@ -180,12 +189,34 @@ function omens(s: GameState) {
   const [text, name, tenet] = pick(r, options);
   log(s, 'omen', text, [], 5, name);
   plantFaithSeed(s, tenet);
+  // Omen after omen: people start to say they're living in strange times.
+  const recent = (s.flags.omenDays ?? []).filter((d) => s.day - d < 6 * DAYS_PER_YEAR);
+  recent.push(s.day);
+  s.flags.omenDays = recent;
+  if (recent.length >= 3) {
+    beginSideAge(s, 'omens', `Omen followed omen, and the old people said the world was thinning at the edges. People began to call it the Age of Omens.`);
+  }
 }
 
-function checkStage(s: GameState) {
-  if (s.stage === 'settlement' && population(s) >= 50) {
+export function checkStage(s: GameState) {
+  const pop = population(s);
+  if (s.stage === 'settlement' && pop >= 50) {
     s.stage = 'village';
     log(s, 'stage', `${s.name} had grown into a village. The elders marked the day by planting an oak beside the fire, and a charter was sung instead of written: everyone who lived here, and everyone who would.`, [], 9, 'The Year of the Charter');
+  } else if (s.stage === 'village' && pop >= 250) {
+    s.stage = 'town';
+    grantCharter(s);
+    growMap(s);
+  } else if (s.stage === 'town' && pop >= 2000) {
+    s.stage = 'city';
+    log(s, 'stage', `${s.name} had become a city: more people than anyone could know by name, more streets than anyone could walk in a day.`, [], 10, 'The Year of the City');
+    s.flags.ceremony = { kind: 'charter', day: s.day };
+    growMap(s);
+  } else if (s.stage === 'city' && pop >= 10000) {
+    s.stage = 'metropolis';
+    log(s, 'stage', `${s.name} had become one of the great cities of the world.`, [], 10, 'The Year of the Great City');
+    s.flags.ceremony = { kind: 'charter', day: s.day };
+    growMap(s);
   }
 }
 

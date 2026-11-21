@@ -12,9 +12,10 @@ import { SettingsPanel } from './Settings';
 import { SocietyPanel } from './Society';
 import { FamilyTree } from './FamilyTree';
 import { ItemDialog } from './ItemDialog';
+import { AgesPanel, Ceremony } from './Ages';
 
 const TITLES: Record<Panel, string> = {
-  chronicle: 'The Chronicle', people: 'People', society: 'Society', acts: 'Acts', arrivals: 'Arrivals', settings: 'Settings', art: 'Art',
+  chronicle: 'The Chronicle', people: 'People', society: 'Society', ages: 'Ages', acts: 'Acts', arrivals: 'Arrivals', settings: 'Settings', art: 'Art',
 };
 
 export function App() {
@@ -53,6 +54,7 @@ export function App() {
             {panel === 'chronicle' && <ChroniclePanel />}
             {panel === 'people' && <PeoplePanel />}
             {panel === 'society' && <SocietyPanel />}
+            {panel === 'ages' && <AgesPanel />}
             {panel === 'acts' && <ActsPanel />}
             {panel === 'arrivals' && <ArrivalsPanel />}
             {panel === 'settings' && <SettingsPanel />}
@@ -62,7 +64,7 @@ export function App() {
       {panel === 'art' && <ArtStudio />}
       {ui.selection?.kind === 'person' && <PersonCard id={ui.selection.id} />}
       {ui.selection?.kind === 'building' && <BuildingCard id={ui.selection.id} />}
-      {ui.gapMs ? <GapDialog /> : ui.ended ? <SessionEnd /> : null}
+      {ui.gapMs ? <GapDialog /> : ui.ended ? <SessionEnd /> : s.flags.ceremony && !s.focus.running ? <Ceremony /> : null}
       {ui.tree !== undefined && !ui.ended && !ui.gapMs && <FamilyTree id={ui.tree} />}
       {ui.item !== undefined && !ui.ended && !ui.gapMs && <ItemDialog id={ui.item} />}
       {ui.logWords && !ui.ended && <WordsDialog />}

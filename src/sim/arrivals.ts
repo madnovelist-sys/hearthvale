@@ -9,21 +9,29 @@ import { makeItem } from './items';
 import { hasLaw } from './society';
 import type { GameState, Party, PersonDraft } from './types';
 
-type PartyShape = 'single' | 'couple' | 'family' | 'siblings' | 'elder';
+type PartyShape = 'single' | 'couple' | 'family' | 'siblings' | 'elder' | 'caravan' | 'journeymen' | 'scholars' | 'pilgrims';
 
 export function makeParty(s: GameState): Party {
   const r = s.rng;
   const village = s.stage !== 'settlement';
+  // A town draws other kinds of travelers: traders, craftsmen looking for work, scholars, pilgrims.
+  const town = s.stage !== 'settlement' && s.stage !== 'village';
+  const temple = s.buildings.find((b) => b.kind === 'temple' && b.built && !b.removed && b.faith !== undefined && !s.faiths[b.faith]?.gone);
   const shape = weighted<PartyShape>(r, [
     ['single', village ? 34 : 56],
     ['couple', village ? 30 : 30],
     ['family', village ? 22 : 6],
     ['siblings', village ? 9 : 5],
     ['elder', village ? 5 : 3],
+    ['caravan', town ? 9 : 0],
+    ['journeymen', town ? 9 : 0],
+    ['scholars', town && s.buildings.some((b) => b.kind === 'scribes' && b.built && !b.removed) ? 5 : 0],
+    ['pilgrims', town && temple ? 5 : 0],
   ]);
   const family = familyName(r);
   const people: PersonDraft[] = [];
   let story = '';
+  let faith: number | undefined;
   switch (shape) {
     case 'single': {
       const p = draftPerson(r, { age: int(r, 17, 45) });
@@ -79,6 +87,39 @@ export function makeParty(s: GameState): Party {
       story = `${n === 2 ? 'Two' : 'Three'} ${family} siblings, ${people.map((p) => p.first).join(' and ')}, orphaned by a fever and looking for a place to belong.`;
       break;
     }
+    case 'caravan': {
+      const a = draftPerson(r, { age: int(r, 26, 44), family, sex: 'm', orientation: 'straight', spouseOf: 1, skill: pick(r, ['potter', 'smith'] as const) });
+      const b = draftPerson(r, { age: Math.max(20, a.age + int(r, -6, 4)), family, sex: 'f', orientation: 'straight', spouseOf: 0 });
+      people.push(a, b);
+      if (chance(r, 0.6)) people.push(draftPerson(r, { age: int(r, 2, 12), family, parentsIdx: [0, 1] }));
+      story = pick(r, [
+        `The ${family}s, traders who had passed through ${s.name} with their mules for years, finally decided to stay.`,
+        `A merchant's caravan came over the hills, and the ${family} family that led it liked the market so much they bought a house.`,
+      ]);
+      break;
+    }
+    case 'journeymen': {
+      const trade = pick(r, ['potter', 'smith', 'builder'] as const);
+      const n = int(r, 2, 3);
+      for (let i = 0; i < n; i++) people.push(draftPerson(r, { age: int(r, 18, 30), skill: trade }));
+      const word = trade === 'potter' ? 'potters' : trade === 'smith' ? 'smiths' : 'builders';
+      story = `${n === 2 ? 'Two' : 'Three'} young ${word}, ${people.map((p) => p.first).join(' and ')}, walking from town to town to learn their trade, heard there was work in ${s.name}.`;
+      break;
+    }
+    case 'scholars': {
+      const a = draftPerson(r, { age: int(r, 20, 50), family, traits: ['curious', pick(r, ['clever', 'shy', 'stubborn', 'gregarious'] as const)] });
+      people.push(a);
+      story = `${a.first} ${family} came a long way to read the tablets kept by the scribes of ${s.name}, and never quite got around to leaving.`;
+      break;
+    }
+    case 'pilgrims': {
+      const f = s.faiths[temple!.faith!];
+      faith = f.id;
+      const n = int(r, 1, 3);
+      for (let i = 0; i < n; i++) people.push(draftPerson(r, { age: int(r, 18, 55), traits: ['pious', pick(r, ['kind', 'content', 'gloomy', 'cheerful'] as const)] }));
+      story = `${people.map((p) => p.first).join(' and ')} came on pilgrimage to the temple of ${f.name}, and stayed to be near it.`;
+      break;
+    }
     case 'elder': {
       const g = draftPerson(r, { age: int(r, 55, 70), family });
       const c = draftPerson(r, { age: int(r, 6, 14), family });
@@ -87,7 +128,7 @@ export function makeParty(s: GameState): Party {
       break;
     }
   }
-  return { id: s.nextId.party++, story, people };
+  return { id: s.nextId.party++, story, people, faith };
 }
 
 export function makeArrivalOptions(s: GameState): Party[] {
@@ -107,6 +148,7 @@ export function settleParty(s: GameState, party: Party, patron = false) {
     }
     p.backstory = p.backstory ?? party.story;
   });
+  if (party.faith !== undefined && !s.faiths[party.faith]?.gone) for (const p of created) p.faith = party.faith;
   const shelter = pitchShelter(s, created.length);
   for (const p of created) p.home = shelter?.id;
   const ids = created.map((p) => p.id);

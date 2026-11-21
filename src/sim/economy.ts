@@ -7,6 +7,8 @@ import { chopWood, forestMonth } from './forest';
 import { herdYield } from './animals';
 import { ageOf, isBlessed, present, seasonIndex, tone } from './world';
 import { hasLaw } from './society';
+import { boost } from './ages';
+import { guildRate } from './town';
 
 // Daily food per worker, by season: spring, summer, autumn, winter.
 const FOOD_RATE: Partial<Record<JobId, number[]>> = {
@@ -32,7 +34,7 @@ function workRate(s: GameState, p: Person): number {
   if (isBlessed(s, p)) m *= 1.1;
   if (hasLaw(s, 'work-dawn')) m *= 1.08;
   if (p.health < 50) m *= 0.7;
-  return m;
+  return m * guildRate(s, p);
 }
 
 export function economyDay(s: GameState) {
@@ -42,12 +44,16 @@ export function economyDay(s: GameState) {
   const hasKiln = s.buildings.some((b) => b.kind === 'kiln' && b.built && !b.removed);
   const hasFurnace = s.buildings.some((b) => b.kind === 'furnace' && b.built && !b.removed);
   const hasGranary = s.buildings.some((b) => b.kind === 'granary' && b.built && !b.removed);
-  const knowledge = 1 + Math.min(0.3, s.flags.knowledge * 0.05);
+  const knowledge = (1 + Math.min(0.3, s.flags.knowledge * 0.05)) * boost(s, 'food');
+  const craft = boost(s, 'goods');
+  const axes = boost(s, 'wood');
   const worked = new Set<number>();
   for (const b of s.buildings) if (b.kind === 'field' && b.built && !b.removed && b.worker !== undefined) worked.add(b.worker);
 
   let food = 0;
   let wood = 0;
+  let cutTotal = 0;
+  let cutters = 0;
   let goods = 0;
   let need = 0;
   const pop = people.length;
@@ -65,11 +71,14 @@ export function economyDay(s: GameState) {
       food += f;
     } else if (p.job === 'woodcutter') {
       // Wood comes from real trees: the nearest grown ones, farther as the woods thin.
-      wood += chopWood(s, (season === 3 ? 1.0 : 1.6) * rate);
+      const cut = chopWood(s, (season === 3 ? 1.0 : 1.6) * rate * axes);
+      wood += cut;
+      cutTotal += cut;
+      cutters++;
     } else if (p.job === 'potter') {
-      goods += (hasKiln ? 1 : 0.4) * rate;
+      goods += (hasKiln ? 1 : 0.4) * rate * craft;
     } else if (p.job === 'smith') {
-      goods += (hasFurnace ? 0.8 : 0.2) * rate;
+      goods += (hasFurnace ? 0.8 : 0.2) * rate * craft;
     } else if (p.job === 'none' && ageOf(s, p) >= 16) {
       food += 0.5 * rate; // forage a little
     }
@@ -82,6 +91,8 @@ export function economyDay(s: GameState) {
   goods += wool;
   s.stores.food += food;
   s.stores.wood += wood;
+  // How much a woodcutter actually brings home, now that the woods are where they are.
+  if (cutters) s.flags.woodYield = (s.flags.woodYield ?? 1.2) * 0.97 + (cutTotal / cutters) * 0.03;
   s.stores.goods += goods;
   s.stores.food *= hasGranary ? 0.9993 : 0.998;
 
@@ -178,7 +189,7 @@ export function assignJobs(s: GameState) {
   target.builder = wantsBuild ? Math.min(Math.ceil(n / (lean ? 12 : 6)), Math.max(1, Math.ceil(backlog / 60))) : n > 10 ? 1 : 0;
   // Enough woodcutters for firewood and building, fewer when the woodpile is high.
   const woodPerDay = pop * 0.02 + (target.builder ?? 0) * 1.6;
-  let cutters = Math.min(Math.ceil(n / 4), Math.ceil(woodPerDay / 1.2));
+  let cutters = Math.min(Math.ceil(n / 3.5), Math.ceil(woodPerDay / Math.max(0.35, s.flags.woodYield ?? 1.2)));
   if (s.stores.wood > 1500) cutters = Math.floor(cutters / 2);
   if (s.stores.wood > 4000) cutters = 0;
   target.woodcutter = n >= 4 ? Math.max(s.stores.wood > 4000 ? 0 : 1, cutters) : 0;
@@ -189,7 +200,7 @@ export function assignJobs(s: GameState) {
   const rest = Math.max(1, n - Object.values(target).reduce((a, b) => a + (b ?? 0), 0));
   // Feed everyone with a margin, more when stores are low, less when they overflow.
   const margin = foodDays < 120 ? 1.35 : foodDays > 600 ? 0.95 : 1.15;
-  const perHand = 1.75 * (1 + Math.min(0.3, s.flags.knowledge * 0.05));
+  const perHand = 1.75 * (1 + Math.min(0.3, s.flags.knowledge * 0.05)) * boost(s, 'food');
   const foodHands = Math.min(rest, Math.max(1, Math.ceil((need * margin) / perHand)));
   target.fisher = Math.round(foodHands * 0.22); // the settlement always sits near the river
   target.gatherer = Math.round(foodHands * 0.16);

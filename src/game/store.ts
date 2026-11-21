@@ -7,7 +7,7 @@ import { loadGame, saveGame } from './save';
 import { notify } from './desktop';
 import { stopTimeToday } from './sky';
 
-export type Panel = 'chronicle' | 'people' | 'society' | 'acts' | 'arrivals' | 'settings' | 'art';
+export type Panel = 'chronicle' | 'people' | 'society' | 'ages' | 'acts' | 'arrivals' | 'settings' | 'art';
 export type Selection = { kind: 'person'; id: number } | { kind: 'building'; id: number } | null;
 
 export interface Toast { id: number; text: string; tone?: 'gold' | 'plain' }
@@ -22,7 +22,7 @@ export interface UiState {
   gapMs: number | null;
   gapReason?: 'closed' | 'away';
   /** Open act form. */
-  act: 'settler' | 'quest' | 'name' | 'law' | 'prophet' | null;
+  act: 'settler' | 'quest' | 'name' | 'law' | 'prophet' | 'inspire' | null;
   /** Person whose family tree is open. */
   tree?: number;
   /** Heirloom whose story is open. */

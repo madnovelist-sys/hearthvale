@@ -206,10 +206,19 @@ export function followers(s: GameState, faithId: number): number {
   return n;
 }
 
+/** A name no living faith already uses (a split takes a name of its own). */
+function freshFaithName(s: GameState, tenets: TenetId[]): string {
+  const taken = new Set(s.faiths.filter((f) => !f.gone).map((f) => f.name));
+  const options = tenets.flatMap((t) => FAITH_NAMES[t]).filter((n) => !taken.has(n));
+  if (options.length) return pick(s.rng, options);
+  const base = pick(s.rng, FAITH_NAMES[tenets[0]]);
+  return base.replace(/^the /, 'the New ');
+}
+
 export function foundFaith(s: GameState, founder: Person, tenets: TenetId[], name?: string, opts: { patron?: boolean; parent?: number } = {}): Faith {
   const faith: Faith = {
     id: s.nextId.faith++,
-    name: name?.trim() || pick(s.rng, FAITH_NAMES[tenets[0]]), // 'the Way of …': capitalized where shown
+    name: name?.trim() || freshFaithName(s, tenets), // 'the Way of …': capitalized where shown
     founder: founder.id,
     founded: s.day,
     tenets,
@@ -317,11 +326,12 @@ export function businessName(s: GameState, kind: string, owner: Person): string 
   switch (kind) {
     case 'kiln': return pick(s.rng, [`${owner.first}'s Pots`, `The ${adj} Kiln`, `The ${owner.family} Kiln`]);
     case 'furnace': return pick(s.rng, [`${owner.first}'s Forge`, `The ${adj} Anvil`, `${owner.family} Bronze`]);
+    case 'alehouse': return pick(s.rng, [`The ${adj} Cup`, `The ${pick(s.rng, ['Crooked Ox', 'Sleeping Dog', 'Barley Sheaf', 'Three Jugs', 'Leaky Roof', 'Drowned Goat'])}`, `${owner.first}'s Alehouse`]);
     default: return pick(s.rng, [`${owner.first}'s Stall`, `The ${adj} Basket`, `${owner.family} & Kin`]);
   }
 }
 
-const TRADE_OF: Record<string, Person['job'] | undefined> = { kiln: 'potter', furnace: 'smith', stall: undefined };
+const TRADE_OF: Record<string, Person['job'] | undefined> = { kiln: 'potter', furnace: 'smith', stall: undefined, alehouse: undefined };
 
 /** Give a business an owner (and a name, the first time). */
 export function openBusiness(s: GameState, b: { id: number; kind: string; name?: string; owner?: number }) {

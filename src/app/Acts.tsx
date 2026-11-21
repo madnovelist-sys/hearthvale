@@ -1,7 +1,8 @@
 // Acts: the player's powers, bought with Favor. Plus the travelers waiting at
 // the gate after each Spark.
 import { useState } from 'preact/hooks';
-import { ACTS, actCost, applyPending, createSettler, lawCost, nameChild, nameYear, raiseProphet, sendOnQuest, welcomeParty, whisperLaw } from '../sim/acts';
+import { ACTS, actCost, applyPending, createSettler, inspire, lawCost, nameChild, nameYear, raiseProphet, sendOnQuest, welcomeParty, whisperLaw } from '../sim/acts';
+import { candidates, titleCase } from '../sim/ages';
 import { answerPetition } from '../sim/petitions';
 import { FORTUNES, takeFortune } from '../sim/fortunes';
 import { LAWS, TENETS, hasLaw, opinion } from '../sim/society';
@@ -13,7 +14,7 @@ import type { DreamId, JobId, LawId, Orientation, PersonDraft, QuestKind, Sex, T
 import { ageOf, fullName, yearOf } from '../sim/world';
 import { PersonLink } from './format';
 
-const ICON: Record<string, string> = { bless: '☀', name: '✎', settler: '✦', quest: '⚑', law: '⚖', prophet: '☽' };
+const ICON: Record<string, string> = { bless: '☀', name: '✎', settler: '✦', quest: '⚑', law: '⚖', prophet: '☽', inspire: '✺' };
 
 export function ActsPanel() {
   const s = store.state!;
@@ -23,6 +24,7 @@ export function ActsPanel() {
   if (act === 'name') return <NameForm />;
   if (act === 'law') return <LawForm />;
   if (act === 'prophet') return <ProphetForm />;
+  if (act === 'inspire') return <InspireForm />;
   const cost = (id: string) => (id === 'prophet' && s.flags.freeProphet ? 0 : actCost(id as never));
   return (
     <>
@@ -40,7 +42,7 @@ export function ActsPanel() {
           <button class="btn small" disabled={s.favor < cost(a.id) || (a.id === 'law' && !s.leader)}
             onClick={() => (a.id === 'bless'
               ? store.toast('Choose someone on the map or in People, then press Bless on their card.')
-              : store.setUi({ act: a.id as 'settler' | 'quest' | 'name' | 'law' | 'prophet', actTarget: undefined }))}>
+              : store.setUi({ act: a.id as 'settler' | 'quest' | 'name' | 'law' | 'prophet' | 'inspire', actTarget: undefined }))}>
             {a.id === 'bless' ? 'How' : 'Begin'}
           </button>
         </div>
@@ -400,6 +402,44 @@ function ProphetForm() {
       <input type="text" maxLength={40} placeholder="Leave blank and the followers will name it" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} />
       {error && <div class="error">{error}</div>}
       <div style={{ marginTop: 12 }}><button class="btn primary" type="submit" disabled={!free && s.favor < actCost('prophet')}>Raise a prophet</button></div>
+    </form>
+  );
+}
+
+function InspireForm() {
+  const s = store.state!;
+  const ideas = candidates(s);
+  // People whose work could lead somewhere, first.
+  const useful = (p: { job: JobId }) => ideas.filter((d) => d.jobs.includes(p.job)).length;
+  const adults = s.people.filter((p) => p.alive && p.away === undefined && ageOf(s, p) >= 16)
+    .sort((a, b) => useful(b) - useful(a) || fullName(a).localeCompare(fullName(b)));
+  const [who, setWho] = useState<number>(store.ui.actTarget ?? adults[0]?.id ?? -1);
+  const [error, setError] = useState('');
+  const p = s.people[who];
+  const theirs = p ? ideas.filter((d) => d.jobs.includes(p.job)) : [];
+  const submit = (e: Event) => {
+    e.preventDefault();
+    const r = inspire(s, who);
+    if (!r.ok) { setError(r.reason); return; }
+    store.toast(`${p.first} has an idea.`, 'gold');
+    store.setUi({ act: null });
+    store.changed();
+  };
+  return (
+    <form class="form" onSubmit={submit}>
+      <Back title={`Inspire · ✦${actCost('inspire')}`} />
+      <p class="note">Give someone an idea that won't let go. Knowledge gathers faster, and the next discovery will likely come out of their work. Their trade decides what they might find.</p>
+      <label>Who</label>
+      <select value={who} onChange={(e) => setWho(Number((e.target as HTMLSelectElement).value))}>
+        {adults.map((x) => <option key={x.id} value={x.id}>{fullName(x)} ({JOB_LABEL[x.job]})</option>)}
+      </select>
+      <p class="sub" style={{ marginTop: 6 }}>
+        {theirs.length
+          ? <>Their work could lead to: {theirs.map((d) => titleCase(d.name)).join(', ')}.</>
+          : <>Nothing their trade leads to is in the air just now, but the knowledge still helps.</>}
+      </p>
+      {error && <div class="error">{error}</div>}
+      <div style={{ marginTop: 12 }}><button class="btn primary" type="submit" disabled={s.favor < actCost('inspire')}>Inspire</button></div>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 // Saving. A city can hold hundreds of hours of someone's work, so it's saved
 // often, backed up daily, and can be exported to a file at any time.
+import { DAYS_PER_YEAR } from '../sim/types';
 import type { GameState } from '../sim/types';
 import { SAVE_VERSION } from '../sim/sim';
 import { ensureForest } from '../sim/forest';
@@ -113,6 +114,12 @@ function migrate(s: GameState): GameState {
   s.settings.notify ??= false;
   s.settings.dayNight ??= 'clock';
   s.settings.stopAt ??= null;
+  // Towns and ages. An older city has been learning things all along: give it a head start,
+  // and the discoveries arrive over the next seasons.
+  s.ages ??= [{ name: s.age.name, era: s.age.era, from: 0 }];
+  s.lore ??= { points: Math.min(300, Math.floor(s.day / DAYS_PER_YEAR) * 6), known: [] };
+  s.guilds ??= [];
+  s.nextId.guild ??= 0;
   return s;
 }
 

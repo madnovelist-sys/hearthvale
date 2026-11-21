@@ -4,6 +4,8 @@ import { LAW, TENETS, followers, leaderTitle } from '../sim/society';
 import { BUILDING_LABEL } from '../sim/planner';
 import { ageOf, yearOf } from '../sim/world';
 import { PersonLink } from './format';
+import { ArmsShield } from './Arms';
+import { describeArms } from '../sim/town';
 
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 
@@ -24,6 +26,19 @@ export function SocietyPanel() {
         <p class="note" style={{ background: '#f3d2cc' }}>
           <b>{cap(s.plague.name)}</b> is in {s.name}: {s.plague.cases} have fallen sick and {s.plague.deaths} have died since Year {yearOf(s.plague.since)}.
         </p>
+      )}
+      {s.arms && (
+        <div class="group" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <ArmsShield arms={s.arms} size={44} />
+          <div>
+            <b>The arms of {s.name}</b>
+            <div class="sub">{cap(describeArms(s.arms))}. “{s.arms.motto}.”</div>
+            <div class="sub">
+              {s.walls ? (s.walls.built ? `${s.walls.kind === 'stone' ? 'Stone walls' : 'A palisade'} with ${s.walls.gates.length} gates.` : `${s.walls.kind === 'stone' ? 'Stone walls' : 'A palisade'} going up: ${Math.round((s.walls.progress / s.walls.required) * 100)}% built.`) : 'No wall yet.'}
+              {' '}{s.buildings.filter((b) => b.kind === 'bridge' && b.built && !b.removed).length ? 'A bridge over the river.' : ''}
+            </div>
+          </div>
+        </div>
       )}
       <div class="group">
         <h4>{s.stage === 'settlement' ? 'Who people listen to' : 'The chief'}</h4>
@@ -72,6 +87,21 @@ export function SocietyPanel() {
         <h4>Animals</h4>
         <p>{herd ? `${herd} goats and sheep in the pens.` : 'No herds yet.'} {dogs ? `${dogs} ${dogs === 1 ? 'dog' : 'dogs'}` : ''}{dogs && cats ? ' and ' : ''}{cats ? `${cats} ${cats === 1 ? 'cat' : 'cats'}` : ''}{dogs || cats ? ' live with families.' : ''} {s.wild.deer > 0 ? `About ${s.wild.deer} deer in the woods nearby.` : 'No deer have been seen nearby in a long while.'}</p>
       </div>
+      {s.guilds.some((g) => !g.gone) && (
+        <div class="group">
+          <h4>Guilds</h4>
+          {s.guilds.filter((g) => !g.gone).map((g) => {
+            const m = g.master !== undefined ? s.people[g.master] : undefined;
+            const n = s.people.filter((p) => p.alive && !p.left && p.away === undefined && p.job === g.trade && ageOf(s, p) >= 16).length;
+            return (
+              <div class="party" key={g.id}>
+                <b>{cap(g.name)}</b> <span class="sub">since Year {yearOf(g.founded)} · {n} members</span>
+                {m && <div class="sub">Master: <PersonLink p={m} /></div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div class="group">
         <h4>Businesses</h4>
         {businesses.length === 0 && <p class="note">None yet. Kilns, forges and market stalls get names when they open.</p>}

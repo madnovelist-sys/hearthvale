@@ -14,10 +14,13 @@ export function tileCost(map: MapData, buildings: Building[], i: number): number
   const occ = map.occ[i];
   if (occ) {
     const b = buildings[occ - 1];
+    if (b?.kind === 'bridge') return b.built ? 0.9 : Infinity;
     if (b && !b.removed && b.kind !== 'field' && b.kind !== 'graveyard') return Infinity;
     if (b?.kind === 'field') return 1.8;
   }
+  if (map.wallsUp && map.walls?.[i] === 1) return Infinity;
   let c = 1;
+  if (t === TERRAIN.PLAZA) return 0.75;
   if (t === TERRAIN.SAND) c = 1.1;
   else if (t === TERRAIN.ROCK) c = 1.6;
   else if (t === TERRAIN.MARSH) c = 2.2;

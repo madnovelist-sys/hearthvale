@@ -4,6 +4,7 @@ import { F, log, P } from './chronicle';
 import { killPerson } from './life';
 import { addBuilding, findSite, removeBuilding } from './planner';
 import { hasLaw, plantFaithSeed } from './society';
+import { beginSideAge } from './ages';
 import { chance, int, pick, range } from './rng';
 import type { Building, GameState } from './types';
 import { ageOf, darkFactor, isDwelling, present, residents, seasonIndex, tone } from './world';
@@ -49,12 +50,15 @@ export function plagueDay(s: GameState) {
   const people = present(s);
   const sick = people.filter((p) => p.sick?.plague).length;
   const healers = people.some((p) => p.job === 'healer' && !p.sick);
-  let spread = 0.002 + 0.05 * (sick / Math.max(1, people.length));
+  // It comes in from outside for the first months, then only passes from the sick to the well.
+  const age = s.day - pl.since;
+  let spread = (age < 120 ? 0.002 : 0) + 0.05 * (sick / Math.max(1, people.length));
   if (hasLaw(s, 'fever-huts')) spread *= 0.55;
   if (healers) spread *= 0.85;
-  if (s.day - pl.since > 200) spread *= 0.3; // the survivors are hardier
+  if (age > 200) spread *= 0.3; // the survivors are hardier
+  if (age > 540) spread *= 0.3;
   for (const p of people) if (!p.sick && chance(s.rng, spread)) infect(s, p);
-  if (s.day - pl.lastCase > 40 && sick === 0) endPlague(s, false);
+  if ((s.day - pl.lastCase > 40 && sick === 0) || age > 3 * 360) endPlague(s, false);
 }
 
 export function endPlague(s: GameState, answered: boolean) {
@@ -67,6 +71,10 @@ export function endPlague(s: GameState, answered: boolean) {
     ? `The fever broke all at once, in every house on the same night, as if someone had decided it was enough. ${toll}`
     : `${cap(pl.name)} burned itself out. ${toll}`, [], pl.deaths >= 5 ? 6 : 4);
   plantFaithSeed(s, answered ? 'hearth' : 'ancestors');
+  // A plague that took many lives gives its name to the times, if the world is grim enough.
+  if (pl.deaths >= Math.max(8, present(s).length * 0.1)) {
+    beginSideAge(s, 'plague', `Nobody who lived through ${pl.name} ever quite forgot it. People began to call it the Age of Plague.`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +96,7 @@ export function fireDay(s: GameState) {
   }
 }
 
-const flammable = (b: Building) => isDwelling(b.kind) || ['granary', 'kiln', 'furnace', 'stall', 'hall', 'dock'].includes(b.kind);
+const flammable = (b: Building) => isDwelling(b.kind) || ['granary', 'kiln', 'furnace', 'stall', 'hall', 'dock', 'alehouse', 'healer', 'scribes', 'guildhall'].includes(b.kind);
 
 export function ignite(s: GameState, b: Building, first: boolean) {
   b.burning = s.day + int(s.rng, 2, 4);
@@ -109,6 +117,11 @@ function burn(s: GameState, b: Building, hasWell: boolean) {
   // Burned out.
   b.burning = undefined;
   b.burned = true;
+  // A great fire: many buildings in a few days.
+  const run = s.day - (s.flags.lastBurn ?? -99) < 12 ? (s.flags.burnedRun ?? 0) + 1 : 1;
+  s.flags.lastBurn = s.day;
+  s.flags.burnedRun = run;
+  if (run === 10) beginSideAge(s, 'ash', `The great fire left a scar of ash through the middle of ${s.name}, and for years afterward people dated things from it. They called it the Age of Ash.`);
   const inside = residents(s, b.id);
   const dark = darkFactor(s);
   for (const p of inside) {

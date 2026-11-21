@@ -156,6 +156,7 @@ function resolve(s: GameState, q: Quest) {
     case 'knowledge': {
       ret();
       s.flags.knowledge += 1;
+      s.lore.points += 15;
       const idea = pick(s.rng, ['a better way to sow barley', 'a trick for drying fish that kept them all winter', 'how to read the stars for planting', 'a new way to bank a fire', 'a song for every season']);
       log(s, 'return', `${party} returned from ${q.place} after ${ago} with little to carry but much to teach: ${idea}.`, q.members, 6, `The Year ${leader.first} Came Home`);
       break;

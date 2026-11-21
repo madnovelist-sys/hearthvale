@@ -6,6 +6,7 @@ import { store, type Panel } from '../game/store';
 import { currentYearName } from '../sim/chronicle';
 import { population, seasonName, yearOf } from '../sim/world';
 import { hms } from './format';
+import { ArmsShield } from './Arms';
 
 const STAGE: Record<string, string> = { settlement: 'Settlement', village: 'Village', town: 'Town', city: 'City', metropolis: 'Metropolis' };
 
@@ -52,7 +53,7 @@ export function Hud() {
   return (
     <div class="hud paper" role="banner">
       <div class="place">
-        <span class="name">{s.name}</span>
+        <span class="name">{s.arms && <span class="arms"><ArmsShield arms={s.arms} size={18} /></span>}{s.name}</span>
         <span class="when">
           {STAGE[s.stage]} · Year {yearOf(s.day)}, {seasonName(s.day)}{yearName ? ` · ${yearName}` : ''} · {s.age.name}
         </span>
@@ -84,6 +85,7 @@ export function Hud() {
         {tab('chronicle', 'Chronicle')}
         {tab('people', 'People')}
         {tab('society', 'Society')}
+        {tab('ages', 'Ages')}
         {tab('acts', 'Acts', s.petitions.length + s.fortunes.length)}
         {tab('arrivals', 'Arrivals', waiting)}
         {tab('settings', 'Settings')}

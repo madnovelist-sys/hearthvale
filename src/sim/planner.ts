@@ -3,6 +3,8 @@
 import { log } from './chronicle';
 import { openBusiness } from './society';
 import { startHerd } from './animals';
+import { boost, ERAS } from './ages';
+import { bridgeFinished, progressWalls, townWant } from './town';
 import { isBuildable } from './mapgen';
 import { buildCostGrid, findPath, reachable } from './path';
 import { rand, shuffle, int } from './rng';
@@ -13,25 +15,36 @@ export const FOOTPRINT: Record<BuildingKind, [number, number]> = {
   hearth: [1, 1], stone: [1, 1], tent: [1, 1], leanto: [1, 1], hut: [1, 1], house: [1, 1], bighouse: [2, 2], hall: [3, 3],
   granary: [2, 2], kiln: [2, 2], furnace: [1, 1], shrine: [2, 2], well: [1, 1], dock: [1, 1], stall: [1, 1],
   field: [2, 2], graveyard: [3, 3], pen: [2, 2],
+  townhouse: [1, 1], alehouse: [2, 2], healer: [1, 1], scribes: [2, 2], temple: [3, 3], guildhall: [2, 2], bridge: [1, 1],
 };
 
 export const BUILD_WORK: Record<BuildingKind, number> = {
   hearth: 0, stone: 0, tent: 0, leanto: 0, hut: 24, house: 50, bighouse: 80, hall: 160, granary: 40, kiln: 30,
   furnace: 40, shrine: 40, well: 20, dock: 25, stall: 12, field: 6, graveyard: 0, pen: 14,
+  townhouse: 70, alehouse: 60, healer: 30, scribes: 70, temple: 200, guildhall: 90, bridge: 25,
 };
 
 /** Wood used per unit of building work. Fields and graveyards need none. */
 const WOOD_PER_WORK: Partial<Record<BuildingKind, number>> = { field: 0, graveyard: 0, well: 0.4, shrine: 0.3, kiln: 0.8, pen: 0.8 };
 const DEFAULT_WOOD_PER_WORK = 1.5;
+/** Later eras build more in stone, brick and steel. */
+const ERA_WOOD = [1, 0.75, 0.8, 0.6, 0.35, 0.25, 0.2];
 
 export const BUILDING_LABEL: Record<BuildingKind, string> = {
   hearth: 'The Hearth', stone: 'The Old Stone', tent: 'Hide tent', leanto: 'Lean-to', hut: 'Round hut', house: 'Mudbrick home',
   bighouse: 'Family house', hall: 'Gathering hall', granary: 'Granary', kiln: "Potter's kiln",
   furnace: 'Bronze furnace', shrine: 'Stone circle', well: 'Well', dock: 'Fishing dock', stall: 'Market stall',
   field: 'Barley field', graveyard: 'Burial ground', pen: 'Animal pen',
+  townhouse: 'Two-storey house', alehouse: 'Alehouse', healer: "Healer's hut", scribes: 'House of scribes',
+  temple: 'Temple', guildhall: 'Guildhall', bridge: 'Bridge',
 };
 
 const regionCache = new WeakMap<object, Uint8Array>();
+/** Forget the reachable land (after a bridge opens the far bank). */
+export function invalidateRegion(s: GameState) {
+  regionCache.delete(s.map);
+}
+
 export function settlementRegion(s: GameState): Uint8Array {
   let r = regionCache.get(s.map);
   if (!r) {
@@ -53,15 +66,16 @@ function setOcc(s: GameState, b: Building, value: number) {
 
 export function addBuilding(
   s: GameState, kind: BuildingKind, x: number, y: number,
-  opts: { built?: boolean; forPeople?: number[]; replaces?: number; worker?: number } = {},
+  opts: { built?: boolean; forPeople?: number[]; replaces?: number; worker?: number; size?: [number, number] } = {},
 ): Building {
-  const [w, h] = FOOTPRINT[kind];
+  const [w, h] = opts.size ?? FOOTPRINT[kind];
   const b: Building = {
     id: s.nextId.building++,
     kind, x, y, w, h,
     built: opts.built ?? BUILD_WORK[kind] === 0,
+    era: s.age.era,
     progress: 0,
-    required: BUILD_WORK[kind],
+    required: BUILD_WORK[kind] * (opts.size ? w * h : 1),
     variant: int(s.rng, 0, 59), // picks among however many art variants exist
     founded: s.day,
     forPeople: opts.forPeople,
@@ -101,7 +115,9 @@ export function findSite(s: GameState, kind: BuildingKind): { x: number; y: numb
   const { map, hearth } = s;
   const nBuilt = s.buildings.filter((b) => !b.removed && b.kind !== 'field').length;
   const ring = 2.6 + Math.sqrt(nBuilt) * 0.85;
-  const R = sk === 'field' ? 28 : 24;
+  // The search reaches farther as the settlement spreads (and the map widens).
+  const reach = Math.max(24, Math.round(ring + 12));
+  const R = Math.min((map.w >> 1) - 2, sk === 'field' ? reach + 4 : reach);
   let best: { x: number; y: number; score: number } | null = null;
 
   for (let y = Math.max(1, hearth.y - R); y < Math.min(map.h - h - 1, hearth.y + R); y++) {
@@ -114,7 +130,7 @@ export function findSite(s: GameState, kind: BuildingKind): { x: number; y: numb
       for (let yy = y; yy < y + h && ok; yy++) {
         for (let xx = x; xx < x + w; xx++) {
           const i = yy * map.w + xx;
-          if (!region[i] || map.occ[i] || !isBuildable(map.terrain[i])) { ok = false; break; }
+          if (!region[i] || map.occ[i] || !isBuildable(map.terrain[i]) || map.walls?.[i]) { ok = false; break; }
           if (map.trees[i]) trees += map.trees[i] === TREE.BOULDER ? 3 : 1;
           if (map.wear[i] > 1.2) worn++;
           fert += map.fertility[i];
@@ -212,12 +228,15 @@ function builderWork(s: GameState): number {
 
 function progressConstruction(s: GameState) {
   const list = projects(s);
-  if (!list.length) return;
-  let work = builderWork(s);
+  let work = builderWork(s) * boost(s, 'build');
+  // The town wall takes a share of the work while it's going up, and whatever's left over.
+  const walling = s.walls && !s.walls.built;
+  if (!list.length) { if (walling) progressWalls(s, work); return; }
+  if (walling) work = progressWalls(s, work * 0.3) + work * 0.7;
   for (const b of list) {
     if (work <= 0) break;
     const need = b.required - b.progress;
-    const perWood = WOOD_PER_WORK[b.kind] ?? DEFAULT_WOOD_PER_WORK;
+    const perWood = (WOOD_PER_WORK[b.kind] ?? DEFAULT_WOOD_PER_WORK) * ERA_WOOD[ERAS.indexOf(s.age.era)];
     const woodLimit = perWood > 0 ? s.stores.wood / perWood : Infinity;
     const done = Math.min(work, need, woodLimit);
     if (done <= 0) continue;
@@ -226,22 +245,30 @@ function progressConstruction(s: GameState) {
     s.stores.wood -= done * perWood;
     if (b.progress >= b.required - 1e-6) completeBuilding(s, b);
   }
+  if (walling && work > 0) progressWalls(s, work);
 }
 
 function completeBuilding(s: GameState, b: Building) {
   b.built = true;
   b.completed = s.day;
   b.progress = b.required;
+  b.era = s.age.era;
   if (b.replaces !== undefined) {
     const old = s.buildings[b.replaces];
     if (old && !old.removed) {
       for (const p of s.people) if (p.home === old.id) p.home = b.id;
       old.removed = true;
+      // Rebuilt in the new way: the business, herd or faith carries on.
+      if (old.kind === b.kind) {
+        b.name = old.name; b.owner = old.owner; b.herd = old.herd; b.faith = old.faith; b.guild = old.guild; b.worker = old.worker;
+        return;
+      }
     }
     setOcc(s, b, b.id + 1);
     }
   if (b.forPeople?.length) moveIn(s, b, b.forPeople);
-  if (b.kind === 'kiln' || b.kind === 'furnace' || b.kind === 'stall') openBusiness(s, b);
+  if (b.kind === 'kiln' || b.kind === 'furnace' || b.kind === 'stall' || b.kind === 'alehouse') openBusiness(s, b);
+  if (b.kind === 'bridge') { bridgeFinished(s, b); return; }
   if (b.kind === 'pen') {
     startHerd(s, b);
     log(s, 'build', `An animal pen was built at the edge of ${s.name}, and ${b.herd} goats and sheep were traded for pots and bronze.`, [], 3);
@@ -265,6 +292,12 @@ function completeBuilding(s: GameState, b: Building) {
       shrine: `Stones were dragged into a circle on the rise. People began leaving small offerings there.`,
       dock: `A fishing dock was built out over the water.`,
       stall: `The first market stall opened, trading pots for fish and fish for pots.`,
+      healer: `A healer's hut went up at the quiet end of ${s.name}, with a garden of bitter herbs out front.`,
+      alehouse: `${s.name}'s first alehouse opened its doors, and closed them again only reluctantly.`,
+      scribes: `A house of scribes was built, where the young were taught to make marks in clay and read them back.`,
+      townhouse: `The first two-storey house was finished near the square, with a ladder to the upper room. Everyone wanted to see the view.`,
+      guildhall: `${b.name ? b.name[0].toUpperCase() + b.name.slice(1) : 'A guildhall'} was finished, and its members walked through the town in their best clothes.`,
+      temple: `${b.name ? b.name[0].toUpperCase() + b.name.slice(1) : 'A temple'} was finished, a stepped mound of earth and brick taller than any roof in ${s.name}.`,
     };
     log(s, 'build', lines[b.kind] ?? `The first ${label} was built.`, [], 3);
   }
@@ -293,9 +326,14 @@ export function pitchShelter(s: GameState, people: number): Building | undefined
   return site ? addBuilding(s, kind, site.x, site.y) : undefined;
 }
 
-/** Find an empty home nobody lives in. */
+/** Find an empty home nobody lives in (or half of a two-storey house). */
 function vacantHome(s: GameState, byHome: Map<number, Person[]>): Building | undefined {
-  return s.buildings.find((b) => b.built && !b.removed && isDwelling(b.kind) && b.kind !== 'tent' && b.kind !== 'leanto' && !byHome.get(b.id)?.length);
+  return s.buildings.find((b) => {
+    if (!b.built || b.removed || !isDwelling(b.kind) || b.kind === 'tent' || b.kind === 'leanto') return false;
+    const here = byHome.get(b.id) ?? [];
+    if (b.kind === 'townhouse') return here.filter((p) => ageOf(s, p) >= 16).length <= 2 && here.length <= 4;
+    return !here.length;
+  });
 }
 
 function reservedFor(s: GameState): Set<number> {
@@ -325,6 +363,8 @@ function housing(s: GameState) {
       (r) => r.id !== p.id && r.id !== spouse.id && ageOf(s, r) >= 16 && !p.children.includes(r.id) && !spouse.children.includes(r.id),
     );
     if (home !== undefined && others.length === 0 && spouse.home === home) continue;
+    // Two households can share a two-storey house.
+    if (home !== undefined && spouse.home === home && s.buildings[home]?.kind === 'townhouse' && others.length <= 2) continue;
     const vacant = vacantHome(s, byHome);
     if (vacant) {
       moveIn(s, vacant, [p.id, spouse.id]);
@@ -410,6 +450,7 @@ function civic(s: GameState) {
   else if (pop >= 45 && countBuildings(s, 'granary') < 2) want = 'granary';
   else if (pop >= 40 && countBuildings(s, 'well') < 2) want = 'well';
   else if (pop >= 60 && countBuildings(s, 'pen') < 2) want = 'pen';
+  if (!want) want = townWant(s);
   if (want) queueBuilding(s, want);
 
   // Every farmer works a field of their own.
@@ -465,7 +506,8 @@ function cachedPath(s: GameState, costs: () => Float32Array, from: { x: number; 
   if (!c) { c = new Map(); pathCaches.set(s.map, c); }
   const key = (from.y * s.map.w + from.x) * 65536 + to.y * s.map.w + to.x;
   const hit = c.get(String(key));
-  const ttl = 60 + ((from.x * 31 + from.y * 17 + to.x * 7 + to.y) % 60);
+  // Routes are re-thought every few months; less often in a big town, where they've settled.
+  const ttl = (60 + ((from.x * 31 + from.y * 17 + to.x * 7 + to.y) % 60)) * (1 + Math.min(3, Math.floor(s.people.length / 600)));
   if (!hit || s.day - hit.day > ttl || s.day < hit.day) {
     const path = findPath(s.map, s.buildings, from.x, from.y, to.x, to.y, 3000, costs());
     c.set(String(key), { path, day: s.day });
@@ -480,8 +522,13 @@ export function doorOf(b: Building): { x: number; y: number } {
 }
 
 /** Where someone goes to work each day, if anywhere. */
-export function workSite(s: GameState, p: Person): { x: number; y: number } | null {
-  const find = (kind: BuildingKind) => s.buildings.find((b) => b.kind === kind && b.built && !b.removed);
+export function workSite(s: GameState, p: Person, memo?: Map<BuildingKind, Building | undefined>): { x: number; y: number } | null {
+  const find = (kind: BuildingKind) => {
+    if (memo?.has(kind)) return memo.get(kind);
+    const b = s.buildings.find((x) => x.kind === kind && x.built && !x.removed);
+    memo?.set(kind, b);
+    return b;
+  };
   switch (p.job) {
     case 'farmer': {
       const f = s.buildings.find((b) => b.kind === 'field' && !b.removed && b.worker === p.id);
@@ -509,16 +556,22 @@ function wearDay(s: GameState) {
   let grid: Float32Array | undefined;
   const costs = () => (grid ??= buildCostGrid(s.map, s.buildings));
   const plaza = { x: s.hearth.x, y: s.hearth.y + 1 };
-  for (const p of present(s)) {
-    if (p.home === undefined || p.sick || p.injured) continue;
-    const home = s.buildings[p.home];
+  // In a big town, a rotating sample of walkers stands in for everyone (their steps count for more).
+  const walkers = present(s).filter((p) => p.home !== undefined && !p.sick && !p.injured);
+  const MAX = 240;
+  const step = Math.max(1, Math.ceil(walkers.length / MAX));
+  const offset = (s.day / WEAR_EVERY) % step;
+  const sites = new Map<BuildingKind, Building | undefined>();
+  for (let k = offset; k < walkers.length; k += step) {
+    const p = walkers[k];
+    const home = s.buildings[p.home!];
     if (!home || home.removed) continue;
     const door = doorOf(home);
-    const site = workSite(s, p);
+    const site = workSite(s, p, sites);
     const to = site ?? plaza;
     const path = cachedPath(s, costs, door, to);
     if (!path) continue;
-    const amount = (site ? 0.012 : 0.005) * WEAR_EVERY;
+    const amount = (site ? 0.012 : 0.005) * WEAR_EVERY * step;
     for (const i of path) wear[i] += amount;
   }
 }

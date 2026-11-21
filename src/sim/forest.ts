@@ -47,7 +47,7 @@ function findTarget(s: GameState): number {
   const region = settlementRegion(s);
   let best = -1;
   let bestD = Infinity;
-  const R = 34;
+  const R = Math.max(34, Math.round(Math.sqrt(s.buildings.length) * 1.6));
   for (let y = Math.max(0, hearth.y - R); y < Math.min(map.h, hearth.y + R); y++) {
     for (let x = Math.max(0, hearth.x - R); x < Math.min(map.w, hearth.x + R); x++) {
       const i = y * map.w + x;
