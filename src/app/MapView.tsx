@@ -5,6 +5,7 @@ import { Renderer } from '../render/renderer';
 import { store } from '../game/store';
 import { view } from './view';
 import { skyAt } from '../game/sky';
+import { reportCrash } from './App';
 
 export function MapView() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -27,10 +28,12 @@ export function MapView() {
       const interval = s.focus.running ? 1000 / 30 : 1000 / 10;
       if (t - lastDraw < interval - 2) return;
       lastDraw = t;
-      store.tick();
-      const running = !!s.focus.running;
-      canvas.classList.toggle('frozen', !running);
-      r.frame(s, t, running, store.ui.selection, skyAt(s, Date.now()).night);
+      try {
+        store.tick();
+        r.frame(s, t, !!s.focus.running, store.ui.selection, skyAt(s, Date.now()).night);
+      } catch (e) {
+        reportCrash(e);
+      }
     };
     raf = requestAnimationFrame(loop);
 

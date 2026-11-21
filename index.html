@@ -9,6 +9,48 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // If anything goes wrong before (or while) the app draws itself, say so on screen,
+      // with the details, instead of leaving an empty window.
+      (function () {
+        var errs = (window.__hwErrors = []);
+        function note(msg) { errs.push(String(msg)); if (window.__hwShown) show(); }
+        window.addEventListener('error', function (e) {
+          if (!e.message && e.target && e.target !== window) return; // a missing image: not fatal
+          note((e.message || 'Error') + (e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ':' + e.colno + ')' : '') + (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) { var r = e.reason; note('Unhandled: ' + ((r && (r.stack || r.message)) || r)); });
+        function show() {
+          window.__hwShown = true;
+          var box = document.getElementById('hw-crash');
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'hw-crash';
+            box.setAttribute('style', 'position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(20,18,28,0.6);font:14px/1.45 -apple-system,system-ui,sans-serif;color:#3b2f2a');
+            document.body.appendChild(box);
+          }
+          var details = errs.join('\n\n') + '\n\n' + navigator.userAgent;
+          box.innerHTML = '<div style="background:#f2e6cc;border-radius:12px;max-width:640px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.4)">' +
+            '<h2 style="margin:0 0 6px;font:600 22px Georgia,serif">Something went wrong in Hearthwork</h2>' +
+            '<p style="margin:0 0 10px">Your city is safe in its save. Please copy the details below and send them along, so it can be fixed.</p>' +
+            '<pre id="hw-crash-text" style="white-space:pre-wrap;max-height:260px;overflow:auto;background:#fff8ea;border:1px solid #d8c8a8;border-radius:8px;padding:10px;font:12px/1.4 ui-monospace,Menlo,monospace"></pre>' +
+            '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+            '<button id="hw-crash-copy" style="padding:6px 12px;border-radius:8px;border:1px solid #c9a86a;background:#ffe2b3;cursor:pointer">Copy details</button>' +
+            '<button id="hw-crash-reload" style="padding:6px 12px;border-radius:8px;border:1px solid #c9a86a;background:#fff8ea;cursor:pointer">Reload</button>' +
+            '<button id="hw-crash-close" style="padding:6px 12px;border-radius:8px;border:1px solid #c9a86a;background:#fff8ea;cursor:pointer">Dismiss</button></div></div>';
+          document.getElementById('hw-crash-text').textContent = details;
+          document.getElementById('hw-crash-copy').onclick = function () { try { navigator.clipboard.writeText(details); } catch (e) { /* select it instead */ } var r = document.createRange(); r.selectNodeContents(document.getElementById('hw-crash-text')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+          document.getElementById('hw-crash-reload').onclick = function () { location.reload(); };
+          document.getElementById('hw-crash-close').onclick = function () { box.remove(); };
+        }
+        window.__hwCrash = function (msg) { note(msg); show(); };
+        setTimeout(function () {
+          if (document.querySelector('.hud, .founding, .studio')) return;
+          if (!errs.length) note('The app had not finished starting after 10 seconds.');
+          show();
+        }, 10000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

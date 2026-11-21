@@ -151,7 +151,22 @@ export class Renderer {
     this.drawLighting(s, now);
     if (season === 3) this.drawSnow(dt);
     this.drawMood(s);
+    // While you rest, time stands still and the colors soften (drawn here rather than with a
+    // CSS filter on the canvas, which some web views draw badly).
+    this.still += ((running ? 0 : 1) - this.still) * Math.min(1, realDt / 600);
+    if (this.still > 0.01) {
+      g.globalCompositeOperation = 'saturation';
+      g.fillStyle = `rgba(128,128,128,${(0.45 * this.still).toFixed(3)})`;
+      g.fillRect(0, 0, this.w, this.h);
+      g.globalCompositeOperation = 'multiply';
+      g.fillStyle = `rgba(255,236,210,${(0.35 * this.still).toFixed(3)})`;
+      g.fillRect(0, 0, this.w, this.h);
+      g.globalCompositeOperation = 'source-over';
+    }
   }
+
+  /** 0 while time runs, easing to 1 while it stands still. */
+  private still = 0;
 
   /** Side ages color the whole world a little: sickly after plague, grey after fire, strange in an age of omens. */
   private drawMood(s: GameState) {
@@ -390,6 +405,25 @@ export class Renderer {
     if (alpha < 1) g.globalAlpha = 1;
   }
 
+  /** A sprite darkened to a burned-out shell (made once, then kept). */
+  private charredCache = new WeakMap<Sprite, Sprite>();
+  private charred(sp: Sprite): Sprite {
+    let c = this.charredCache.get(sp);
+    if (!c) {
+      const cv = document.createElement('canvas');
+      cv.width = sp.w; cv.height = sp.h;
+      const x = cv.getContext('2d');
+      if (!x) return sp;
+      x.drawImage(sp.img, 0, 0, sp.w, sp.h);
+      x.globalCompositeOperation = 'source-atop';
+      x.fillStyle = 'rgba(34,28,26,0.78)';
+      x.fillRect(0, 0, sp.w, sp.h);
+      c = { ...sp, img: cv, lights: [], smoke: [] };
+      this.charredCache.set(sp, c);
+    }
+    return c;
+  }
+
   /**
    * Shrinking a big sprite every frame is slow. Keep copies already scaled to
    * the current zoom (in steps of about 6%), drawn at device resolution.
@@ -442,9 +476,7 @@ export class Renderer {
         if (d.b && d.b.id === selB) this.outlineFootprint(d.b);
         if (d.b?.burned) {
           // A charred shell.
-          g.filter = 'brightness(0.32) saturate(0.25)';
-          this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
-          g.filter = 'none';
+          this.drawSprite(this.charred(d.sprite), d.gx, d.gy, d.alpha, d.fit);
         } else {
           this.drawSprite(d.sprite, d.gx, d.gy, d.alpha, d.fit);
         }

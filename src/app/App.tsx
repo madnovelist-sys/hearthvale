@@ -1,3 +1,4 @@
+import { Component, type ComponentChildren } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { store, useStore, type Panel } from '../game/store';
 import { ActsPanel, ArrivalsPanel } from './Acts';
@@ -73,4 +74,28 @@ export function App() {
       </div>
     </>
   );
+}
+
+/** If drawing the interface ever fails, show what went wrong (see index.html) instead of nothing. */
+export class Crashproof extends Component<{ children: ComponentChildren }, { failed: boolean }> {
+  state = { failed: false };
+  componentDidCatch(err: unknown) {
+    reportCrash(err);
+    this.setState({ failed: true });
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+const reported = new Set<string>();
+/** Show an error on screen (once per kind of error), with its details for copying. */
+export function reportCrash(err: unknown) {
+  const e = err as { stack?: string; message?: string };
+  const text = e?.stack || e?.message || String(err);
+  const key = e?.message ?? text;
+  if (reported.has(key)) return;
+  reported.add(key);
+  console.error(err);
+  (window as unknown as { __hwCrash?: (m: string) => void }).__hwCrash?.(text);
 }
