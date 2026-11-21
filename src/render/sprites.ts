@@ -24,7 +24,8 @@ export interface Sprite {
 
 /** Asset names from the art document, minus variant and state. */
 export const ART_KEY: Partial<Record<BuildingKind, string>> = {
-  tent: 'bld_tent_bronze_1x1',
+  tent: 'bld_hide-tent_bronze_1x1',
+  leanto: 'bld_lean-to_bronze_1x1',
   hut: 'bld_hut-round_bronze_1x1',
   house: 'bld_home_bronze_1x1',
   bighouse: 'bld_house-large_bronze_2x2',
@@ -133,7 +134,7 @@ export function realSprite(base: string, variant: number, state?: string): Sprit
 
 /** Homes without marked windows still glow at the door at night. */
 function withDefaultLights(key: string, s: Sprite): Sprite {
-  if (s.lights.length || !/^bld_(home|hut|house|tent)/.test(key)) return s;
+  if (s.lights.length || !/^bld_(home|hut|house|hide-tent|tent|lean-to)/.test(key)) return s;
   const t = s.tilePx;
   return { ...s, lights: [[s.ax - t * 0.24, s.ay - t * 0.12 - t * 0.28]] };
 }
@@ -283,6 +284,26 @@ function cylinder(c: Canvas, cx: number, cy: number, rx: number, h: number, colo
 function placeholderBuilding(kind: BuildingKind, variant: number): Sprite {
   const v = variant % 3;
   switch (kind) {
+    case 'leanto': {
+      // A sloped thatch roof on four posts, open at the front, with a woodpile under it.
+      const c = new Canvas(1, 1, 70);
+      c.poly([c.pt(0.12, 0.88), c.pt(0.88, 0.88), c.pt(0.88, 0.12), c.pt(0.12, 0.12)], 'rgba(62,58,79,0.22)');
+      const g = c.g;
+      const post = (gx: number, gy: number, h: number) => {
+        const a = c.pt(gx, gy), b = c.pt(gx, gy, h);
+        g.strokeStyle = C.timber; g.lineWidth = 4; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      };
+      post(0.2, 0.2, 58); post(0.8, 0.2, 58);
+      // the wattle back wall
+      c.poly([c.pt(0.2, 0.2), c.pt(0.8, 0.2), c.pt(0.8, 0.2, 56), c.pt(0.2, 0.2, 56)], shade(C.thatch, -0.25), edge(C.thatch));
+      for (let i = 0; i < 3; i++) {
+        const a = c.pt(0.3 + i * 0.13, 0.62, 6), b = c.pt(0.3 + i * 0.13, 0.32, 6);
+        g.strokeStyle = shade(C.timber, 0.1); g.lineWidth = 7; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      }
+      post(0.2, 0.8, 34); post(0.8, 0.8, 34);
+      c.poly([c.pt(0.12, 0.88, 32), c.pt(0.88, 0.88, 32), c.pt(0.88, 0.12, 62), c.pt(0.12, 0.12, 62)], C.thatch, edge(C.thatch));
+      return c.sprite([c.pt(0.5, 0.6, 10)]);
+    }
     case 'tent': {
       const c = new Canvas(1, 1, 90);
       const hide = [C.hide, '#A98C6A', '#C2A784'][v];

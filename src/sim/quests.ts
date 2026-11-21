@@ -4,7 +4,7 @@ import { F, log, P } from './chronicle';
 import { killPerson } from './life';
 import { questPlace, nickname } from './names';
 import { createPerson, draftPerson } from './people';
-import { addBuilding, findSite } from './planner';
+import { addBuilding, findSite, pitchShelter } from './planner';
 import { plantFaithSeed } from './society';
 import { itemsOf, itemsReturn, makeItem } from './items';
 import { chance, int, pick, weighted } from './rng';
@@ -251,7 +251,6 @@ function lateReturn(s: GameState, p: Person | undefined) {
   p.renown += 30;
   p.nickname = nickname(s.rng, 'return');
   itemsReturn(s, p);
-  const site = findSite(s, 'tent');
-  if (site) p.home = addBuilding(s, 'tent', site.x, site.y).id;
+  p.home = pitchShelter(s, 1)?.id;
   log(s, 'return', `${years} years after leaving, ${P(p.id)} walked back into ${s.name}, grey and quiet, carrying nothing. ${cap(pronoun(p))} would not say where ${pronoun(p)} had been.`, [p.id], 9, `The Year ${p.first} Came Back`);
 }

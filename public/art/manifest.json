@@ -14,6 +14,34 @@
       "lights": [],
       "smoke": []
     },
+    "bld_hide-tent_bronze_1x1_v01": {
+      "file": "buildings/bronze/bld_hide-tent_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        149.2,
+        253.4
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
+    "bld_hide-tent_bronze_1x1_v02": {
+      "file": "buildings/bronze/bld_hide-tent_bronze_1x1_v02.png",
+      "tilePx": 256,
+      "anchor": [
+        147.2,
+        252.3
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
+    },
     "bld_home_bronze_1x1_v01": {
       "file": "buildings/bronze/bld_home_bronze_1x1_v01.png",
       "tilePx": 256,
@@ -120,6 +148,20 @@
           27.1
         ]
       ]
+    },
+    "bld_lean-to_bronze_1x1_v01": {
+      "file": "buildings/bronze/bld_lean-to_bronze_1x1_v01.png",
+      "tilePx": 256,
+      "anchor": [
+        140.4,
+        273.6
+      ],
+      "footprint": [
+        1,
+        1
+      ],
+      "lights": [],
+      "smoke": []
     },
     "bld_longhouse_bronze_3x3_v01": {
       "file": "buildings/bronze/bld_longhouse_bronze_3x3_v01.png",

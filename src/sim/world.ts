@@ -86,7 +86,7 @@ export function homesOf(s: GameState): Building[] {
 }
 
 export function isDwelling(kind: Building['kind']): boolean {
-  return kind === 'tent' || kind === 'hut' || kind === 'house' || kind === 'bighouse';
+  return kind === 'tent' || kind === 'leanto' || kind === 'hut' || kind === 'house' || kind === 'bighouse';
 }
 
 export function centerOf(b: Building): { x: number; y: number } {

@@ -90,7 +90,7 @@ export interface Person {
 }
 
 export type BuildingKind =
-  | 'hearth' | 'stone' | 'tent' | 'hut' | 'house' | 'bighouse' | 'hall'
+  | 'hearth' | 'stone' | 'tent' | 'leanto' | 'hut' | 'house' | 'bighouse' | 'hall'
   | 'granary' | 'kiln' | 'furnace' | 'shrine' | 'well' | 'dock' | 'stall'
   | 'field' | 'graveyard' | 'pen';
 

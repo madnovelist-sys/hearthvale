@@ -10,13 +10,13 @@ import { TERRAIN, TREE, type Building, type BuildingKind, type GameState, type P
 import { ageOf, centerOf, isDwelling, population, present, residents, tileIndex } from './world';
 
 export const FOOTPRINT: Record<BuildingKind, [number, number]> = {
-  hearth: [1, 1], stone: [1, 1], tent: [1, 1], hut: [1, 1], house: [1, 1], bighouse: [2, 2], hall: [3, 3],
+  hearth: [1, 1], stone: [1, 1], tent: [1, 1], leanto: [1, 1], hut: [1, 1], house: [1, 1], bighouse: [2, 2], hall: [3, 3],
   granary: [2, 2], kiln: [2, 2], furnace: [1, 1], shrine: [2, 2], well: [1, 1], dock: [1, 1], stall: [1, 1],
   field: [2, 2], graveyard: [3, 3], pen: [2, 2],
 };
 
 export const BUILD_WORK: Record<BuildingKind, number> = {
-  hearth: 0, stone: 0, tent: 0, hut: 24, house: 50, bighouse: 80, hall: 160, granary: 40, kiln: 30,
+  hearth: 0, stone: 0, tent: 0, leanto: 0, hut: 24, house: 50, bighouse: 80, hall: 160, granary: 40, kiln: 30,
   furnace: 40, shrine: 40, well: 20, dock: 25, stall: 12, field: 6, graveyard: 0, pen: 14,
 };
 
@@ -25,7 +25,7 @@ const WOOD_PER_WORK: Partial<Record<BuildingKind, number>> = { field: 0, graveya
 const DEFAULT_WOOD_PER_WORK = 1.5;
 
 export const BUILDING_LABEL: Record<BuildingKind, string> = {
-  hearth: 'The Hearth', stone: 'The Old Stone', tent: 'Hide tent', hut: 'Round hut', house: 'Mudbrick home',
+  hearth: 'The Hearth', stone: 'The Old Stone', tent: 'Hide tent', leanto: 'Lean-to', hut: 'Round hut', house: 'Mudbrick home',
   bighouse: 'Family house', hall: 'Gathering hall', granary: 'Granary', kiln: "Potter's kiln",
   furnace: 'Bronze furnace', shrine: 'Stone circle', well: 'Well', dock: 'Fishing dock', stall: 'Market stall',
   field: 'Barley field', graveyard: 'Burial ground', pen: 'Animal pen',
@@ -286,9 +286,16 @@ export function moveIn(s: GameState, b: Building, people: number[]) {
   for (const pid of movers) s.people[pid].home = b.id;
 }
 
+/** Put up a shelter for people with nowhere to live: a lean-to for one, a tent for more. */
+export function pitchShelter(s: GameState, people: number): Building | undefined {
+  const kind: BuildingKind = people <= 1 ? 'leanto' : 'tent';
+  const site = findSite(s, kind);
+  return site ? addBuilding(s, kind, site.x, site.y) : undefined;
+}
+
 /** Find an empty home nobody lives in. */
 function vacantHome(s: GameState, byHome: Map<number, Person[]>): Building | undefined {
-  return s.buildings.find((b) => b.built && !b.removed && isDwelling(b.kind) && b.kind !== 'tent' && !byHome.get(b.id)?.length);
+  return s.buildings.find((b) => b.built && !b.removed && isDwelling(b.kind) && b.kind !== 'tent' && b.kind !== 'leanto' && !byHome.get(b.id)?.length);
 }
 
 function reservedFor(s: GameState): Set<number> {
@@ -341,23 +348,25 @@ function housing(s: GameState) {
     }
   }
 
-  // Homeless people (after a fire, or a return from far away) get a tent.
+  // Homeless people (after a fire, or a return from far away) get a tent, or a lean-to if they're on their own.
   for (const p of people) {
     if (p.home !== undefined || ageOf(s, p) < 16) continue;
-    const site = findSite(s, 'tent');
-    if (!site) break;
-    const tent = addBuilding(s, 'tent', site.x, site.y);
-    p.home = tent.id;
-    for (const c of p.children) { const k = s.people[c]; if (k?.alive && k.home === undefined) k.home = tent.id; }
+    const kids = p.children.map((c) => s.people[c]).filter((k) => k?.alive && k.home === undefined);
+    const shelter = pitchShelter(s, 1 + kids.length);
+    if (!shelter) break;
+    p.home = shelter.id;
+    for (const k of kids) k.home = shelter.id;
   }
 
-  // People in tents get a proper hut built where the tent stands.
+  // People in tents get a proper hut built where the tent stands. Someone alone in a lean-to
+  // makes do for a couple of years (they may well marry and move out first).
   const upgrading = new Set(projects(s).map((b) => b.replaces).filter((x) => x !== undefined));
   let started = 0;
   for (const b of s.buildings) {
     if (started >= 1 || pending + started >= 4) break;
-    if (b.removed || !b.built || b.kind !== 'tent' || upgrading.has(b.id)) continue;
+    if (b.removed || !b.built || (b.kind !== 'tent' && b.kind !== 'leanto') || upgrading.has(b.id)) continue;
     if (!s.people.some((p) => p.alive && !p.left && p.home === b.id)) { removeBuilding(s, b); continue; }
+    if (b.kind === 'leanto' && s.day - (b.completed ?? b.founded) < 720) continue;
     queueUpgrade(s, b, rand(s.rng) < 0.5 ? 'hut' : 'house');
     started++;
   }

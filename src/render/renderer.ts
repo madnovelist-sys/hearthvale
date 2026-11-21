@@ -583,7 +583,7 @@ export class Renderer {
     for (const p of s.people) if (p.alive && p.home !== undefined && p.away === undefined) occupied.add(p.home);
     for (const d of this.drawn) {
       if (d.kind !== 'sprite' || !d.b || !d.sprite.lights.length || d.b.burned) continue;
-      const home = ['tent', 'hut', 'house', 'bighouse'].includes(d.b.kind);
+      const home = ['tent', 'leanto', 'hut', 'house', 'bighouse'].includes(d.b.kind);
       if (home && !occupied.has(d.b.id)) continue;
       const scale = (this.tw / d.sprite.tilePx) * (d.fit ?? 1);
       const a = this.toScreen(d.gx, d.gy);

@@ -3,7 +3,7 @@
 import { F, log, P } from './chronicle';
 import { familyName } from './names';
 import { createPerson, draftPerson } from './people';
-import { addBuilding, findSite } from './planner';
+import { pitchShelter } from './planner';
 import { chance, int, pick, weighted } from './rng';
 import { makeItem } from './items';
 import { hasLaw } from './society';
@@ -107,9 +107,8 @@ export function settleParty(s: GameState, party: Party, patron = false) {
     }
     p.backstory = p.backstory ?? party.story;
   });
-  const site = findSite(s, 'tent');
-  const tent = site ? addBuilding(s, 'tent', site.x, site.y) : undefined;
-  for (const p of created) p.home = tent?.id;
+  const shelter = pitchShelter(s, created.length);
+  for (const p of created) p.home = shelter?.id;
   const ids = created.map((p) => p.id);
   if (patron) {
     const p = created[0];

@@ -21,7 +21,8 @@ Any number of variants (`v01`, `v02`, …) of anything are used at random. State
 
 | Game thing | File name start |
 | --- | --- |
-| Hide tent | `bld_tent_bronze_1x1` |
+| Hide tent (families with nowhere to live yet) | `bld_hide-tent_bronze_1x1` |
+| Lean-to (one person with nowhere to live yet) | `bld_lean-to_bronze_1x1` |
 | Round hut | `bld_hut-round_bronze_1x1` |
 | Mudbrick home (any number of variants) | `bld_home_bronze_1x1` |
 | Family house (2×2, built by big families) | `bld_house-large_bronze_2x2` |
