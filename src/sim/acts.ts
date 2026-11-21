@@ -55,7 +55,7 @@ export function inspire(s: GameState, personId: number): ActResult {
   if (!paid.ok) return paid;
   s.lore.nudge = { person: p.id, until: s.day + 3 * DAYS_PER_YEAR };
   s.lore.points += nextCost(s) * 0.35;
-  s.lore.last = Math.min(s.lore.last ?? -999, s.day - 45);
+  s.lore.last = Math.min(s.lore.last ?? -999, s.day - 30);
   log(s, 'dream', `${P(p.id)} woke with an idea that would not let go, and could talk of nothing else for weeks.`, [p.id], 3);
   return { ok: true };
 }

@@ -7,7 +7,7 @@ import { ageOf, population } from '../src/sim/world';
 import { logWords, startSession, stopSession, tick, focusDay } from '../src/game/clock';
 import { parseSave } from '../src/game/save';
 import { expandMap, growMap, isWater } from '../src/sim/mapgen';
-import { DISCOVERIES, agesYear, beginSideAge, boost, discover, discovery, loreDay, nextCost } from '../src/sim/ages';
+import { DISCOVERIES, agesYear, beginSideAge, boost, discover, discovery, discoveryThreshold, drawDifficulty, loreDay } from '../src/sim/ages';
 import { inspire } from '../src/sim/acts';
 import { addBuilding, findSite, settlementRegion } from '../src/sim/planner';
 import { describeArms, grantCharter, planBridge, planWalls, progressWalls } from '../src/sim/town';
@@ -387,6 +387,22 @@ describe('towns and ages', () => {
     expect(b.era).toBe('iron');
   });
 
+  it('discoveries come at random intervals: sometimes close together, sometimes far apart', () => {
+    const s = foundSettlement({ seed: 78, name: 'Testbrook' });
+    const draws = Array.from({ length: 2000 }, () => drawDifficulty(s));
+    const mean = draws.reduce((a, b) => a + b, 0) / draws.length;
+    expect(mean).toBeGreaterThan(0.85);
+    expect(mean).toBeLessThan(1.15);
+    expect(draws.filter((d) => d < 0.3).length).toBeGreaterThan(100); // a flurry
+    expect(draws.filter((d) => d > 2.5).length).toBeGreaterThan(50); // a long drought
+    // Over a real run, the gaps between discoveries differ.
+    const r = run(79, 30);
+    const days = r.lore.known.map((k) => k.day);
+    const gaps = days.slice(1).map((d, i) => d - days[i]);
+    expect(gaps.length).toBeGreaterThan(1);
+    expect(Math.max(...gaps)).toBeGreaterThan(Math.min(...gaps) * 2);
+  });
+
   it('side ages only come when the sliders allow, and pass', () => {
     const s = run(74, 9);
     s.settings.darkness = 0;
@@ -411,7 +427,7 @@ describe('towns and ages', () => {
     s.favor = 10;
     expect(inspire(s, potter.id).ok).toBe(true);
     expect(s.favor).toBe(6);
-    s.lore.points = nextCost(s);
+    s.lore.points = discoveryThreshold(s);
     loreDay(s);
     const last = s.lore.known.at(-1)!;
     expect(last.id).toBe('potters-wheel');

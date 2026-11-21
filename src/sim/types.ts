@@ -266,8 +266,10 @@ export interface Lore {
   known: { id: string; day: number; by?: number }[];
   /** Inspire: this person's work is likely to lead to the next discovery. */
   nudge?: { person: number; until: number };
-  /** Day of the last discovery: never two in one season. */
+  /** Day of the last discovery: never two in the same month. */
   last?: number;
+  /** How hard the next discovery is, as a share of the usual cost (drawn at random after each one). */
+  need?: number;
 }
 export interface Walls {
   cx: number;

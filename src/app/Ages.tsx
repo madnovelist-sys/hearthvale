@@ -3,7 +3,7 @@
 // the town is granted its charter.
 import { useState } from 'preact/hooks';
 import { store } from '../game/store';
-import { DISCOVERIES, ERA_LABEL, candidates, discovery, nextCost, titleCase } from '../sim/ages';
+import { DISCOVERIES, ERA_LABEL, candidates, discovery, discoveryProgress, titleCase } from '../sim/ages';
 import { JOB_LABEL } from '../sim/people';
 import { describeArms } from '../sim/town';
 import { fullName, yearOf } from '../sim/world';
@@ -14,7 +14,7 @@ const years = (from: number, to?: number) => `Year ${yearOf(from)}${to !== undef
 
 export function AgesPanel() {
   const s = store.state!;
-  const frac = Math.min(1, s.lore.points / nextCost(s));
+  const frac = discoveryProgress(s);
   const nudge = s.lore.nudge && s.lore.nudge.until >= s.day ? s.people[s.lore.nudge.person] : undefined;
   const ideas = candidates(s).slice().sort((a, b) => a.era - b.era).slice(0, 6);
   return (

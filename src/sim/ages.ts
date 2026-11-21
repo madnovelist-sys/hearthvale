@@ -304,11 +304,30 @@ export function knowledgeRate(s: GameState): number {
 }
 
 /**
- * What the next discovery costs. It grows with the city, so discoveries keep a steady pace
- * over the centuries (about one every five years); scribes, curious people and Inspire speed it.
+ * What a discovery usually costs. It grows with the city, so over the centuries discoveries
+ * come about every five years on average; scribes, curious people and Inspire speed them.
  */
 export function nextCost(s: GameState): number {
   return Math.max(30, baseRate(adultsHere(s)) * DAYS_PER_YEAR * 15);
+}
+
+/**
+ * How hard the next discovery turns out to be, as a share of the usual cost: drawn afresh after
+ * each one. Mostly near the usual, but sometimes two come within a year, and sometimes nothing
+ * new for fifteen. (A clamped exponential, so the average stays about 1.)
+ */
+export function drawDifficulty(s: GameState): number {
+  return Math.min(3.5, Math.max(0.12, -Math.log(1 - rand(s.rng))));
+}
+
+/** Knowledge needed for the next discovery. */
+export function discoveryThreshold(s: GameState): number {
+  return nextCost(s) * (s.lore.need ?? 1);
+}
+
+/** How far along the next discovery is, 0..1. */
+export function discoveryProgress(s: GameState): number {
+  return Math.min(1, s.lore.points / discoveryThreshold(s));
 }
 
 /** The least number of years an era lasts, a little different for every city. */
@@ -345,10 +364,12 @@ function discoverer(s: GameState, d: Discovery, nudged?: Person): Person | undef
 
 /** Every day: knowledge gathers, and when there's enough, someone discovers something. */
 export function loreDay(s: GameState) {
+  s.lore.need ??= drawDifficulty(s);
   s.lore.points += knowledgeRate(s);
-  if (s.lore.points < nextCost(s) || s.day - (s.lore.last ?? -999) < 45) return;
+  const need = discoveryThreshold(s);
+  if (s.lore.points < need || s.day - (s.lore.last ?? -999) < 30) return;
   const options = candidates(s);
-  if (!options.length) { s.lore.points = Math.min(s.lore.points, nextCost(s)); return; }
+  if (!options.length) { s.lore.points = Math.min(s.lore.points, need); return; }
   const nudge = s.lore.nudge && s.lore.nudge.until >= s.day ? s.people[s.lore.nudge.person] : undefined;
   const d = weighted(s.rng, options.map((o) => {
     let w = 1 + (o.likes?.(s) ?? 0) * 0.3;
@@ -358,7 +379,8 @@ export function loreDay(s: GameState) {
   }));
   const by = discoverer(s, d, nudge && d.jobs.includes(nudge.job) ? nudge : undefined);
   if (nudge && by === nudge) s.lore.nudge = undefined;
-  s.lore.points -= nextCost(s);
+  s.lore.points = Math.max(0, s.lore.points - need);
+  s.lore.need = drawDifficulty(s);
   discover(s, d, by);
 }
 
